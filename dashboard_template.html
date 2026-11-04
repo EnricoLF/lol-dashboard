@@ -259,7 +259,7 @@
   .comm .axes { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
   .comm-bottom { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-top: 22px; }
   h3.mini { font: 600 14px var(--display); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 8px; }
-  @media (max-width: 900px) { .comm, .comm-bottom { grid-template-columns: 1fr; } }
+  @media (max-width: 900px) { .comm, .comm-bottom { grid-template-columns: minmax(0, 1fr); } }
 
   /* Guida ai parametri */
   .guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); gap: 16px 30px; }
@@ -421,8 +421,10 @@
 
     <article class="card">
       <h2>Andamento LP</h2>
-      <p class="sub">Uno snapshot per ogni aggiornamento giornaliero. Non dipende dai filtri.</p>
+      <p class="sub">Un punto ogni volta che il rank cambia, cioè di solito dopo ogni partita. Non dipende dai filtri.</p>
       <div class="chart" id="lp-trend"></div>
+      <div class="stats" id="lp-stats" style="margin-top:14px"></div>
+      <p class="sub" id="lp-note" style="margin:10px 0 0"></p>
       <details id="lp-details"><summary>Mostra i dati</summary><div class="table-wrap" id="lp-table"></div></details>
     </article>
 
@@ -923,6 +925,12 @@
     const tier = Math.floor(v / 400), div = Math.floor((v % 400) / 100);
     return `${cap(TIERS[tier]).slice(0, 4)} ${DIVS[div]}`;
   }
+  const rankName = (r) => `${cap(r.tier)} ${TIERS.indexOf(r.tier) >= 7 ? '' : r.rank}`.trim();
+  const tone = (v, d = 0) => el('span', { class: v > 0 ? 'good' : v < 0 ? 'bad' : '', text: signed(v, d) });
+  // Dal 4/11/2026 ogni punto ha l'ora ("time"); i punti precedenti, uno al giorno, solo la data
+  const lpWhen = (r) => (r.time ? Date.parse(r.time) : new Date(r.date).getTime());
+  const dateTime = (v) => new Date(v).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' });
+  const lpLabel = (r) => (r.time ? dateTime(r.time) : new Date(r.date).toLocaleDateString('it-IT', { dateStyle: 'medium' }));
   function renderLpTrend() {
     const hist = (DATA.lpHistory || []).filter((r) => TIERS.includes(r.tier));
     const vals = hist.map(ladder);
@@ -933,17 +941,43 @@
       yMax = Math.ceil((Math.max(...vals) + 20) / step) * step;
       for (let t = yMin; t <= yMax; t += step) ticks.push(t);
     }
-    const points = hist.map((r, i) => ({ y: vals[i], x: new Date(r.date).getTime(),
-      title: new Date(r.date).toLocaleDateString('it-IT', { dateStyle: 'medium' }),
-      rows: [[`${cap(r.tier)} ${TIERS.indexOf(r.tier) >= 7 ? '' : r.rank}`.trim(), `${r.lp} LP`], [`${r.wins}V ${r.losses}S`, 'stagione']] }));
+    const points = hist.map((r, i) => ({ y: vals[i], x: lpWhen(r), title: lpLabel(r),
+      rows: [[rankName(r), `${r.lp} LP`], [`${r.wins}V ${r.losses}S`, 'stagione']] }));
+    // Se il rank non e' cambiato dall'ultimo punto, la linea prosegue fino all'ultimo controllo
+    const last = hist[hist.length - 1];
+    if (last && last.seen && Date.parse(last.seen) - lpWhen(last) > 60 * 60000) {
+      points.push({ ...points[points.length - 1], x: Date.parse(last.seen), title: `Ultimo controllo: ${dateTime(last.seen)}` });
+    }
     lineChart($('lp-trend'), [{ name: 'LP', color: 'var(--s1)', points }], {
       yMin, yMax, ticks, yFmt: ladderLabel, endFmt: (v) => `${hist.length ? hist[hist.length - 1].lp : ''} LP`, left: 58,
-      empty: hist.length ? 'Primo snapshot salvato: il grafico compare dal secondo giorno di aggiornamenti.' : 'Nessun dato di rank ancora disponibile.',
-      aria: 'Andamento LP giornaliero',
+      empty: hist.length ? 'Primo rank salvato: il grafico compare dal prossimo aggiornamento.' : 'Nessun dato di rank ancora disponibile.',
+      aria: 'Andamento LP',
     });
     $('lp-details').hidden = !hist.length;
-    $('lp-table').replaceChildren(table(['Data', 'Rank', 'LP', 'Vittorie', 'Sconfitte'],
-      hist.slice().reverse().map((r) => ({ cells: [new Date(r.date).toLocaleDateString('it-IT'), `${cap(r.tier)} ${TIERS.indexOf(r.tier) >= 7 ? '' : r.rank}`, String(r.lp), String(r.wins), String(r.losses)] }))));
+    const rows = hist.map((r, i) => {
+      const played = i ? r.wins + r.losses - hist[i - 1].wins - hist[i - 1].losses : -1;
+      return { cells: [lpLabel(r), rankName(r), String(r.lp), played >= 0 ? tone(vals[i] - vals[i - 1]) : '–',
+        played >= 0 ? String(played) : '–', `${r.wins}V ${r.losses}S`] };
+    });
+    $('lp-table').replaceChildren(table(['Quando', 'Rank', 'LP', 'Variazione', 'Partite', 'Stagione'], rows.reverse(), { leftCols: [1] }));
+    renderLpStats();
+  }
+  function renderLpStats() {
+    const { win, loss } = DATA.lpStats || {};
+    const games = (x) => (!x ? '' : x.games === 1 ? ' (1 partita)' : ` (ultime ${x.games})`);
+    const rows = [[`LP per vittoria${games(win)}`, win ? tone(win.avg) : '–'], [`LP per sconfitta${games(loss)}`, loss ? tone(loss.avg) : '–']];
+    let note = 'Gli LP di ogni partita si contano dal 4/11/2026: le medie compaiono dopo le prime vittorie e sconfitte.';
+    if (win && loss && win.avg > 0 && loss.avg < 0) {
+      const gain = win.avg, lost = -loss.avg, even = lost / (gain + lost);
+      rows.push(['Win rate per restare in pari', pct(even, 0)]);
+      note = Math.min(win.games, loss.games) < 5
+        ? 'Servono almeno 5 vittorie e 5 sconfitte con LP noti per capire se il tuo MMR è sopra o sotto il rank.'
+        : gain - lost >= 3 ? `Guadagni più LP di quanti ne perdi: il tuo MMR è probabilmente sopra il tuo rank. Per salire ti basta vincere più del ${pct(even, 0)} delle partite.`
+        : lost - gain >= 3 ? `Perdi più LP di quanti ne guadagni: il tuo MMR è probabilmente sotto il tuo rank. Per salire devi vincere più del ${pct(even, 0)} delle partite.`
+        : 'Guadagni e perdi circa gli stessi LP: il tuo MMR è in linea con il tuo rank.';
+    }
+    $('lp-stats').replaceChildren(...rows.map(([l, v]) => el('div', { class: 'stat' }, el('span', { text: l }), v instanceof Node ? v : el('span', { text: v }))));
+    $('lp-note').textContent = note;
   }
 
   // ---------------------------------------------------------------- abilita': definizioni
@@ -1492,6 +1526,13 @@
           strong('Massimo vantaggio / svantaggio CS'), ': il distacco più grande raggiunto durante la partita a tuo favore e a favore dell\'avversario (', code('maxCsAdvantageOnLaneOpponent'), ').'),
         p('Oro, danni e visione con l\'asterisco sono valori ', strong('a fine partita'), ': chi vince accumula più oro e danni, quindi sono in parte una conseguenza del risultato. ',
           'I matchup con poche partite sono indicativi: con 4 partite basta una vittoria in più per spostare il win rate di 25 punti.')),
+      section('LP per partita',
+        p('Riot non dice quanti LP vale una partita, ma dice il rank attuale. A ogni aggiornamento la dashboard salva il rank, se è cambiato, e lo confronta con il precedente: ',
+          'se nel frattempo vittorie + sconfitte sono aumentate di una, la differenza di LP è di quella partita. Le promozioni e le retrocessioni sono contate su un\'unica scala, per esempio da Silver II 0 LP a Silver III 75 LP sono −25.'),
+        p('Se giochi più partite di fila tra due aggiornamenti, gli LP non si possono dividere tra le partite. Se però sono tutte vittorie o tutte sconfitte contano lo stesso nelle medie. ',
+          'Un dodge in coda fa perdere LP senza giocare: se capita tra due partite, il valore di quella partita risulta un po\' più basso.'),
+        p(strong('MMR'), ': il matchmaking usa un punteggio nascosto. Se guadagni più LP di quanti ne perdi, di solito l\'MMR è sopra il tuo rank e il sistema ti spinge verso l\'alto; se ne perdi di più, è sotto. ',
+          strong('Win rate per restare in pari'), ' = LP persi ÷ (LP guadagnati + LP persi): sopra quella percentuale sali, sotto scendi.')),
       section('Comunicazione (ping)',
         p('Per ogni partita Riot fornisce solo ', strong('quante volte'), ' ogni giocatore ha usato ciascuno dei 14 ping (campi ', code('enemyMissingPings'), ', ', code('assistMePings'), ', ...): non quando, dove o verso chi. La chat non è disponibile.'),
         p('I ping sono raggruppati in 4 categorie: ', strong('avvisi di pericolo'), ' (nemico scomparso, torna indietro, ritirata, pericolo), ', strong('richieste di aiuto'), ' (aiutami), ',
@@ -1649,14 +1690,14 @@
   function renderRecent(gs) {
     const rows = gs.slice(-20).reverse().map((g) => ({
       cells: [dateLabel(g.ts, true), champIcon(g.champ), roleLabel(g.role), g.oppChamp ? champIcon(g.oppChamp) : '–',
-        el('span', { class: 'result' + (g.win ? ' win' : ''), text: g.win ? 'Vittoria' : 'Sconfitta' }),
+        el('span', { class: 'result' + (g.win ? ' win' : ''), text: g.win ? 'Vittoria' : 'Sconfitta' }), g.lp == null ? '–' : tone(g.lp),
         `${g.k}/${g.d}/${g.a}`, fmt((g.k + g.a) / Math.max(1, g.d), 2), g.score == null ? '–' : fmt(g.score, 0), `${g.cs} (${fmt(g.cs / g.dur, 1)})`,
         pct(g.kp, 0), fmt(g.dmg / g.dur, 0), `${Math.floor(g.dur)}:${String(Math.round((g.dur % 1) * 60)).padStart(2, '0')}`,
         g.queue === 'Duo' ? `Duo con ${g.partners.join(', ')}` : 'Solo'],
     }));
     const host = $('recent');
     if (!rows.length) { host.replaceChildren(el('p', { class: 'empty', text: 'Nessuna partita nel filtro corrente.' })); return; }
-    host.replaceChildren(table(['Data', 'Campione', 'Ruolo', 'Contro', 'Esito', 'K/D/A', 'KDA', 'Punteggio', 'CS (/min)', 'KP', 'Danni/min', 'Durata', 'Coda'], rows, { leftCols: [1, 2, 3, 4, 12] }));
+    host.replaceChildren(table(['Data', 'Campione', 'Ruolo', 'Contro', 'Esito', 'LP', 'K/D/A', 'KDA', 'Punteggio', 'CS (/min)', 'KP', 'Danni/min', 'Durata', 'Coda'], rows, { leftCols: [1, 2, 3, 4, 13] }));
   }
 
   // ---------------------------------------------------------------- render

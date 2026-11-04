@@ -6,9 +6,9 @@ Genera una dashboard HTML (output/dashboard.html) con le statistiche Ranked Solo
 confronto Solo vs Duo Queue, andamento win rate e LP, campioni, ruoli, orari migliori,
 obiettivi, abitudini (tilt, sessioni) e ultime partite.
 
-Pensato per essere eseguito una volta al giorno (vedi refresh_dashboard.bat):
+Pensato per essere eseguito in automatico piu' volte al giorno (vedi refresh_dashboard.bat):
   - scarica solo le partite nuove: lo storico si accumula nella cache locale;
-  - salva uno snapshot giornaliero del rank, da cui nasce il grafico degli LP;
+  - salva il rank ogni volta che cambia, da cui nascono il grafico e gli LP di ogni partita;
   - se l'API Key e' scaduta rigenera comunque la dashboard dai dati in cache;
   - lanciato a mano (aggiorna_dashboard.bat) con la key scaduta, ne chiede una nuova e la salva nel .env.
 
@@ -57,7 +57,7 @@ CACHE_DIR = SCRIPT_DIR / ".cache_matches"
 ENV_FILE = SCRIPT_DIR / ".env"
 DATA_DIR = SCRIPT_DIR / "data"
 STATE_FILE = DATA_DIR / "state.json"        # Riot ID -> PUUID, per lavorare offline se la key e' scaduta
-LP_FILE = DATA_DIR / "lp_history.json"      # Riot ID -> snapshot giornalieri del rank
+LP_FILE = DATA_DIR / "lp_history.json"      # Riot ID -> rank a ogni cambiamento (fino al 4/11/2026: uno al giorno)
 BENCHMARK_FILE = DATA_DIR / "benchmarks.json"  # medie per lega e ruolo, generate da build_benchmarks.py
 TEMPLATE_FILE = SCRIPT_DIR / "dashboard_template.html"
 INDEX_TEMPLATE_FILE = SCRIPT_DIR / "index_template.html"
@@ -200,13 +200,86 @@ def fetch_rank(client: RiotClient, platform: str, puuid: str) -> dict | None:
     }
 
 
+RANK_FIELDS = ("tier", "rank", "lp", "wins", "losses")
+TIERS = ("IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER")
+DIVISIONS = ("IV", "III", "II", "I")
+LP_STATS_GAMES = 20   # LP medi calcolati sulle ultime 20 vittorie e sulle ultime 20 sconfitte
+
+
 def record_lp_snapshot(history: list[dict], rank: dict) -> None:
-    """Un punto al giorno: se lo script gira piu' volte nello stesso giorno, sovrascrive l'ultimo."""
-    snapshot = {"date": date.today().isoformat(), **rank}
-    if history and history[-1].get("date") == snapshot["date"]:
-        history[-1] = snapshot
-    else:
-        history.append(snapshot)
+    """Aggiunge un punto ogni volta che il rank cambia, cioe' di solito dopo ogni partita.
+
+    "time" e' il primo aggiornamento in cui lo script ha visto questo rank, "seen" l'ultimo.
+    I punti salvati fino al 4/11/2026 hanno solo "date" (allora se ne teneva uno al giorno).
+    """
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    last = history[-1] if history else None
+    if last and all(last.get(k) == rank.get(k) for k in RANK_FIELDS):
+        last["seen"] = now
+        return
+    history.append({"date": date.today().isoformat(), "time": now, "seen": now, **rank})
+
+
+def ladder_lp(rank: dict) -> int | None:
+    """LP su un'unica scala, come ladder() nel template: 400 per tier, 100 per divisione, da Master in su conta solo l'LP."""
+    tier = rank.get("tier")
+    if tier not in TIERS:
+        return None
+    if TIERS.index(tier) >= TIERS.index("MASTER"):
+        return TIERS.index("MASTER") * 400 + rank.get("lp", 0)
+    if rank.get("rank") not in DIVISIONS:
+        return None
+    return TIERS.index(tier) * 400 + DIVISIONS.index(rank["rank"]) * 100 + rank.get("lp", 0)
+
+
+def snapshot_ms(snapshot: dict, field: str) -> float | None:
+    value = snapshot.get(field)
+    return datetime.fromisoformat(value).timestamp() * 1000 if value else None
+
+
+def lp_changes(history: list[dict], games: list[dict], end_times: dict[str, int]) -> tuple[dict[str, int], list[dict]]:
+    """LP guadagnati o persi, ricavati dai cambi di rank.
+
+    Riot non dice quanti LP vale una partita: si ricava confrontando due rank consecutivi. Se tra i due
+    vittorie + sconfitte sono aumentate di 1 e nell'intervallo di tempo e' finita esattamente una partita
+    in cache, con lo stesso esito, la variazione di LP e' di quella partita.
+    Restituisce (match_id -> LP, blocchi). Un blocco e' un intervallo in cui le partite sono tutte vinte
+    o tutte perse, {"win", "games", "lp"}: serve per le medie anche quando l'intervallo ha piu' partite.
+    """
+    ended = [(end_times.get(g["id"]) or g["ts"] + g["dur"] * 60000, g) for g in games]
+    per_match, blocks = {}, []
+    for before, after in zip(history, history[1:]):
+        played = (after["wins"] + after["losses"]) - (before["wins"] + before["losses"])
+        won = after["wins"] - before["wins"]
+        lp_before, lp_after = ladder_lp(before), ladder_lp(after)
+        # nessuna partita (es. dodge), nuova stagione o partite di piazzamento: niente da attribuire
+        if played <= 0 or not 0 <= won <= played or lp_before is None or lp_after is None:
+            continue
+        delta = lp_after - lp_before
+        if won in (0, played):
+            blocks.append({"win": won == played, "games": played, "lp": delta})
+        start = snapshot_ms(before, "time") or snapshot_ms(before, "seen")
+        end = snapshot_ms(after, "time")
+        if played == 1 and start and end:
+            inside = [g for t, g in ended if start < t <= end]
+            if len(inside) == 1 and inside[0]["win"] == (won == 1):
+                per_match[inside[0]["id"]] = delta
+    return per_match, blocks
+
+
+def lp_stats(blocks: list[dict]) -> dict:
+    """LP medi per vittoria e per sconfitta, sulle ultime LP_STATS_GAMES partite di ciascun tipo."""
+    stats = {}
+    for label, outcome in (("win", True), ("loss", False)):
+        games = total = 0
+        for block in reversed(blocks):
+            if block["win"] == outcome:
+                games += block["games"]
+                total += block["lp"]
+                if games >= LP_STATS_GAMES:
+                    break
+        stats[label] = {"avg": round(total / games, 1), "games": games} if games else None
+    return stats
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +504,11 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
     lobby = {"label": "La tua lobby", "matches": len(matches), "roles": build_distribution(lobby_rows)}
 
     history = lp_history.get(key, [])
+    end_times = {m["metadata"].get("matchId"): m["info"].get("gameEndTimestamp") for m in matches}
+    lp_by_match, lp_blocks = lp_changes(history, games, end_times)
+    for game in games:
+        if game["id"] in lp_by_match:
+            game["lp"] = lp_by_match[game["id"]]
     generated_at = datetime.now().isoformat(timespec="seconds")
     payload = {
         "slug": account["slug"],
@@ -439,6 +517,7 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
         "status": status,
         "rank": history[-1] if history else None,
         "lpHistory": history,
+        "lpStats": lp_stats(lp_blocks),
         "lobby": lobby,
         "partners": partners,
         "players": players,
