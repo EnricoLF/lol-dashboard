@@ -1,0 +1,1715 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoL Ranked Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Saira+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Tema "notte sulla Landa": HUD scuro, oro per te, turchese per la Duo, rosa per il riferimento.
+     Palette dei segni validata (dataviz validate_palette, dark, all-pairs). */
+  :root {
+    color-scheme: dark;
+    --bg: #0e0d19;
+    --page: #0e0d19;
+    --surface: #17162a;
+    --surface-2: #201f38;
+    --surface-3: #292845;
+    --band-1: #1c1b31;
+    --band-2: #222139;
+    --text: #eceaf6;
+    --text-2: #aba8c8;
+    --muted: #75739a;
+    --grid: rgba(255, 255, 255, 0.07);
+    --axis: rgba(255, 255, 255, 0.16);
+    --border: rgba(255, 255, 255, 0.07);
+    --line: rgba(255, 255, 255, 0.07);
+    --s1: #bf870f;            /* oro: tu / Solo */
+    --s2: #1597a8;            /* turchese: Duo / serie di confronto */
+    --ref: #d4507a;           /* rosa: riferimento */
+    --gold-text: #f2c14e;
+    --div-pos: #1597a8;
+    --div-neg: #d4507a;
+    --div-mid: #2a2944;
+    --good: #1fb8a8;
+    --critical: #e0527c;
+    --warning: #f2b33d;
+    --good-text: #45d3c3;
+    --bad-text: #f2759f;
+    --tip-bg: #0a0913;
+    --tip-text: #eceaf6;
+    --display: "Saira Condensed", "Arial Narrow", system-ui, sans-serif;
+    --body: "Saira Semi Condensed", "Segoe UI", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    color: var(--text);
+    font: 14px/1.5 var(--body);
+    background:
+      radial-gradient(1100px 520px at 8% -8%, rgba(191, 135, 15, 0.13), transparent 62%),
+      radial-gradient(900px 480px at 100% -4%, rgba(21, 151, 168, 0.12), transparent 60%),
+      radial-gradient(800px 600px at 50% 120%, rgba(212, 80, 122, 0.07), transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 9px);
+  }
+  .wrap { position: relative; z-index: 1; max-width: 1320px; margin: 0 auto; padding: 28px 16px 56px; }
+  h1 { font: 700 34px/1.05 var(--display); margin: 0; letter-spacing: 0.01em; }
+  h2 {
+    font: 600 16px/1.2 var(--display); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  h2::before { content: ""; width: 8px; height: 8px; transform: rotate(45deg); background: var(--gold-text); box-shadow: 0 0 10px rgba(242, 193, 78, 0.6); flex: none; }
+  .sub { color: var(--text-2); font-size: 13px; margin: 0 0 14px; }
+  .muted { color: var(--muted); }
+  a { color: var(--gold-text); text-underline-offset: 3px; }
+
+  /* Intestazione */
+  header.top { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .identity { display: flex; gap: 16px; align-items: center; min-width: 0; }
+  .avatar { width: 64px; height: 64px; border-radius: 50%; padding: 3px; flex: none;
+    background: conic-gradient(from 210deg, var(--gold-text), #8a5e08, var(--gold-text)); box-shadow: 0 0 24px rgba(242, 193, 78, 0.25); }
+  .avatar img, .avatar span { width: 100%; height: 100%; border-radius: 50%; display: block; background: var(--surface-2); object-fit: cover; }
+  .accounts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; font-size: 12.5px; color: var(--text-2); }
+  .accounts button, .accounts a { font: 500 12.5px var(--body); color: var(--text); background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 12px; cursor: pointer; text-decoration: none; transition: border-color .15s, background .15s; }
+  .accounts button:hover, .accounts a:hover { border-color: var(--gold-text); background: var(--surface-3); }
+  .accounts .acc { display: inline-flex; }
+  .accounts .acc .acc-main { border-radius: 999px 0 0 999px; }
+  .accounts .acc .acc-new { border-radius: 0 999px 999px 0; border-left: 0; padding: 2px 9px; color: var(--text-2); }
+  .accounts .acc.active .acc-main { border-color: var(--gold-text); color: var(--gold-text); background: var(--surface-3); font-weight: 600; }
+
+  /* Barra riepilogo (rank, ultime 10, campioni) */
+  .strip { display: flex; flex-wrap: wrap; background: linear-gradient(180deg, #1c1b32, #17162a); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 18px; overflow: hidden; }
+  .strip-item { flex: 1 1 210px; display: flex; gap: 12px; align-items: center; padding: 14px 18px; border-right: 1px solid var(--line); min-width: 0; }
+  .strip-item:last-child { border-right: 0; }
+  .strip-item .big { font: 600 19px/1.15 var(--display); white-space: nowrap; }
+  .strip-item .small { font-size: 12.5px; color: var(--text-2); white-space: nowrap; }
+  .strip-item .lbl { font: 600 11px var(--display); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .strip-item img { width: 42px; height: 42px; border-radius: 50%; border: 2px solid var(--surface-3); flex: none; }
+  .crest { width: 46px; height: 46px; flex: none; filter: drop-shadow(0 0 10px var(--crest-glow, rgba(255,255,255,.15))); }
+  .w { color: var(--good-text); } .l { color: var(--bad-text); }
+  .good { color: var(--good-text); } .bad { color: var(--bad-text); }
+
+  .banner { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-left: 3px solid var(--warning); background: var(--surface); border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; }
+  .banner strong { display: block; font-family: var(--display); letter-spacing: .04em; }
+
+  /* Filtri */
+  .filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 18px; }
+  .filters label { display: flex; flex-direction: column; gap: 4px; font: 600 11px var(--display); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .filters select {
+    font: 500 13.5px var(--body); color: var(--text); background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23aba8c8' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center;
+    border: 1px solid var(--line); border-radius: 6px; padding: 7px 30px 7px 10px; min-width: 160px; appearance: none; cursor: pointer; transition: border-color .15s;
+  }
+  .filters select:hover, .filters select:focus { border-color: var(--gold-text); outline: none; }
+  .filters .count { margin-left: auto; color: var(--text-2); font: 600 13px var(--display); letter-spacing: .06em; text-transform: uppercase; padding-bottom: 8px; }
+
+  /* Riquadri numerici */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .tile { position: relative; background: linear-gradient(180deg, #1c1b32, #17162a); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; overflow: hidden; }
+  .tile::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, var(--s1), transparent); opacity: .6; }
+  .tile .label { font: 600 11.5px var(--display); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .tile .value { font: 600 30px/1.1 var(--display); margin-top: 4px; }
+  .tile .meta { color: var(--text-2); font-size: 12px; }
+  .tile.hero { grid-column: span 2; }
+  .tile.hero .value { font-size: 58px; line-height: 1; }
+
+  /* Griglia e card */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(480px, 100%), 1fr)); gap: 16px; }
+  .card {
+    background: linear-gradient(180deg, #1b1a30 0%, #17162a 120px); border: 1px solid var(--line); border-radius: 6px;
+    padding: 18px; min-width: 0; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    animation: rise .55s cubic-bezier(.2, .7, .2, 1) both;
+  }
+  .card.wide { grid-column: 1 / -1; }
+  .grid > .card:nth-child(2) { animation-delay: .05s; } .grid > .card:nth-child(3) { animation-delay: .1s; }
+  .grid > .card:nth-child(4) { animation-delay: .15s; } .grid > .card:nth-child(n+5) { animation-delay: .2s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .empty { color: var(--muted); padding: 24px 0; text-align: center; margin: 0; }
+
+  /* Tabelle */
+  .table-wrap { overflow-x: auto; }
+  .table-wrap.tall { max-height: 440px; overflow-y: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { padding: 8px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+  th { font: 600 11.5px var(--display); text-transform: uppercase; letter-spacing: .09em; color: var(--muted); position: sticky; top: 0; background: #1a192e; }
+  th:first-child, td:first-child, th.left, td.left { text-align: left; }
+  td { font-variant-numeric: tabular-nums; }
+  tbody tr { transition: background .12s; }
+  tbody tr:hover td { background: rgba(255, 255, 255, 0.025); }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover td { background: rgba(242, 193, 78, 0.06); }
+  .champ { display: inline-flex; align-items: center; gap: 9px; }
+  .champ img { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--surface-3); }
+  .delta-up { color: var(--good-text); }
+  .delta-down { color: var(--bad-text); }
+  .delta-flat { color: var(--muted); }
+  .result { display: inline-flex; align-items: center; gap: 7px; font-weight: 500; }
+  .result::before { content: ""; width: 8px; height: 8px; border-radius: 2px; transform: rotate(45deg); background: var(--critical); }
+  .result.win::before { background: var(--good); }
+  .chip { display: inline-block; padding: 1px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); font-size: 12px; color: var(--text-2); margin: 0 6px 6px 0; }
+
+  /* Barre orizzontali (win rate per ruolo, durata) */
+  .bars { display: flex; flex-direction: column; gap: 12px; }
+  .bar-row { display: grid; grid-template-columns: 92px 1fr 96px; gap: 12px; align-items: center; outline: none; }
+  .bar-row.low { opacity: 0.45; }
+  .bar-label { font: 600 13px var(--display); text-transform: uppercase; letter-spacing: .06em; }
+  .bar-track { position: relative; height: 14px; background: var(--band-1); border-radius: 3px; }
+  .bar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #8a6008, var(--s1)); border-radius: 3px 4px 4px 3px; min-width: 2px; transition: filter .15s; }
+  .bar-row:hover .bar-fill, .bar-row:focus .bar-fill { filter: brightness(1.25); }
+  .bar-ref { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--ref); }
+  .bar-value { font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .bar-value strong { color: var(--text); font: 600 15px var(--display); }
+
+  /* Heatmap giorno x fascia oraria */
+  .heat { display: grid; grid-template-columns: 40px repeat(6, 1fr); gap: 3px; }
+  .heat .hdr { font: 600 11px var(--display); letter-spacing: .06em; color: var(--muted); text-align: center; padding-bottom: 2px; }
+  .heat .day { font: 600 12px var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); display: flex; align-items: center; }
+  .heat .cell { height: 36px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font: 600 12.5px var(--display); outline: none; transition: transform .12s; }
+  .heat .cell.none { background: transparent; border: 1px solid var(--line); }
+  .heat .cell:hover, .heat .cell:focus { box-shadow: 0 0 0 2px var(--gold-text); }
+  .heat-legend { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--muted); margin-top: 12px; }
+  .heat-legend .ramp { flex: 0 0 160px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--div-neg), var(--div-mid), var(--div-pos)); }
+
+  /* Liste statistiche */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 2px 20px; }
+  .stat { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .stat span:first-child { color: var(--text-2); }
+  .stat span:last-child { font: 600 15px var(--display); }
+
+  /* Grafici SVG */
+  .chart svg { display: block; overflow: visible; }
+  .chart .gridline { stroke: var(--grid); stroke-width: 1; }
+  .chart .refline { stroke: var(--ref); stroke-width: 1.5; opacity: .8; }
+  .chart .tick { fill: var(--muted); font: 500 11px var(--body); font-variant-numeric: tabular-nums; }
+  .chart .line { fill: none; stroke: var(--s1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .area { fill: var(--s1); opacity: 0.12; }
+  .chart .dot { fill: var(--s1); stroke: var(--surface); stroke-width: 2; }
+  .chart .cross { stroke: var(--text-2); stroke-width: 1; }
+  .chart .endlabel { fill: var(--text); font: 600 13px var(--display); }
+  details { margin-top: 10px; font-size: 12.5px; color: var(--text-2); }
+  details summary { cursor: pointer; }
+
+  /* Legende */
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--text-2); margin-bottom: 8px; }
+  .lkey { display: inline-block; width: 16px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 7px; }
+  .lkey.ref { background: var(--ref); }
+
+  /* Profilo abilita' */
+  .card-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--bg); }
+  .seg button { font: 600 12.5px var(--display); text-transform: uppercase; letter-spacing: .07em; padding: 7px 14px; border: 0; background: transparent; color: var(--muted); cursor: pointer; transition: color .15s, background .15s; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--surface-3); color: var(--gold-text); box-shadow: inset 0 -2px 0 var(--gold-text); }
+  .skills { display: grid; grid-template-columns: minmax(300px, 520px) 1fr; gap: 28px; align-items: start; margin-top: 6px; }
+  .radar svg { margin: 0 auto; }
+  .radar .band-1 { fill: var(--band-1); } .radar .band-2 { fill: var(--band-2); }
+  .radar .ring, .radar .spoke { fill: none; stroke: rgba(255, 255, 255, 0.05); stroke-width: 1; }
+  .radar .refring { fill: rgba(212, 80, 122, 0.10); stroke: var(--ref); stroke-width: 1.5; }
+  .radar .axis-icon { fill: none; stroke: var(--text); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; opacity: .9; }
+  .radar .axis-label { fill: var(--text-2); font: 600 12.5px var(--display); text-transform: uppercase; letter-spacing: .08em; }
+  .radar .axis-score { fill: var(--text); font: 600 14px var(--display); }
+  .radar .shape { transform-origin: var(--c) var(--c); animation: grow .8s cubic-bezier(.2, .8, .2, 1) both; }
+  .radar .axis-group { cursor: default; outline: none; }
+  .radar .axis-group:hover .axis-label, .radar .axis-group:focus .axis-label { fill: var(--gold-text); }
+  .radar .alert { fill: var(--critical); }
+  @keyframes grow { from { transform: scale(0.15); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  .panel { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+  .panel-head { display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: var(--surface-3); font: 600 12.5px var(--display); text-transform: uppercase; letter-spacing: .1em; }
+  .panel-head .vs-tag { color: var(--muted); font-weight: 500; letter-spacing: .04em; text-transform: none; font-family: var(--body); font-size: 12px; }
+  .panel-head .score-tag { margin-left: auto; font: 600 13px var(--display); color: var(--text-2); }
+  .panel-head svg, .focus-title svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .panel-body { padding: 12px 14px 14px; }
+  .focus { margin-bottom: 14px; border-color: rgba(242, 193, 78, 0.25); box-shadow: 0 0 0 1px rgba(242, 193, 78, 0.06), 0 12px 30px rgba(0, 0, 0, 0.25); }
+  .focus-title { display: flex; align-items: center; gap: 10px; font: 600 26px var(--display); color: var(--gold-text); margin-bottom: 6px; }
+  .focus-title svg { width: 26px; height: 26px; }
+  .focus p { margin: 8px 0 0; font-size: 13px; color: var(--text-2); }
+  .focus p strong { color: var(--text); }
+  .versus { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+  .versus .nums { font: 600 38px/1 var(--display); white-space: nowrap; }
+  .versus .nums small { font-size: 15px; color: var(--muted); margin: 0 6px; font-weight: 500; }
+  .versus .nums .ref-num { color: var(--text-2); }
+  .vbars { display: grid; gap: 7px; }
+  .vbar { display: grid; grid-template-columns: 44px 1fr; gap: 8px; align-items: center; font: 600 11px var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .vbar .track { height: 4px; border-radius: 2px; background: var(--band-2); position: relative; }
+  .vbar .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; transition: width .6s cubic-bezier(.2, .8, .2, 1); }
+  .axes { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+  .axes .panel-body .versus .nums { font-size: 30px; }
+  .axes .metric { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 20px 24px; }
+  .multiples h3 { font: 600 14px var(--display); text-transform: uppercase; letter-spacing: .08em; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .multiples h3 svg { width: 16px; height: 16px; fill: none; stroke: var(--gold-text); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .multiples .metric { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+
+  /* Comunicazione (ping) */
+  .insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 10px; margin: 4px 0 18px; }
+  .insight { position: relative; padding: 10px 14px 10px 32px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; font-size: 13.5px; }
+  .insight::before { content: ""; position: absolute; left: 13px; top: 17px; width: 7px; height: 7px; transform: rotate(45deg); background: var(--gold-text); box-shadow: 0 0 8px rgba(242, 193, 78, 0.5); }
+  .comm { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .comm .axes { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  .comm-bottom { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; margin-top: 22px; }
+  h3.mini { font: 600 14px var(--display); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 8px; }
+  @media (max-width: 900px) { .comm, .comm-bottom { grid-template-columns: 1fr; } }
+
+  /* Guida ai parametri */
+  .guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr)); gap: 16px 30px; }
+  .guide section { border-top: 1px solid var(--line); padding-top: 12px; }
+  .guide .wide { grid-column: 1 / -1; }
+  .guide h3 { font: 600 15px var(--display); text-transform: uppercase; letter-spacing: .07em; margin: 0 0 6px; color: var(--gold-text); display: flex; align-items: center; gap: 8px; }
+  .guide h3 svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .guide p { margin: 5px 0; font-size: 13.5px; color: var(--text-2); }
+  .guide p strong { color: var(--text); }
+  .guide code { font-size: 12px; background: var(--surface-3); padding: 1px 6px; border-radius: 4px; color: var(--text); }
+
+  #tooltip { position: fixed; z-index: 10; pointer-events: none; background: var(--tip-bg); color: var(--tip-text); border: 1px solid rgba(242, 193, 78, 0.25); border-radius: 6px; padding: 9px 11px; font-size: 12.5px; max-width: 290px; opacity: 0; transition: opacity .08s; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5); }
+  #tooltip .t-title { font: 600 12px var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--gold-text); margin-bottom: 4px; }
+  #tooltip .t-row { display: flex; gap: 8px; align-items: baseline; }
+  #tooltip .t-row strong { font: 600 15px var(--display); }
+
+  footer { margin-top: 28px; color: var(--muted); font-size: 12px; }
+
+  @media (max-width: 900px) { .skills { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) {
+    h1 { font-size: 26px; }
+    .tile.hero { grid-column: 1 / -1; }
+    .filters select { min-width: 0; width: 100%; }
+    .filters label { flex: 1 1 140px; }
+    .filters .count { margin-left: 0; }
+    .bar-row { grid-template-columns: 74px 1fr 88px; }
+    .strip-item { border-right: 0; border-bottom: 1px solid var(--line); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card, .radar .shape { animation: none; }
+    .vbar .fill { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="identity">
+      <div class="avatar" id="avatar"></div>
+      <div>
+        <h1 id="player"></h1>
+        <div class="sub" id="updated" style="margin:4px 0 0"></div>
+        <div class="accounts" id="accounts" hidden></div>
+      </div>
+    </div>
+  </header>
+  <div class="strip" id="strip"></div>
+
+  <div class="banner" id="banner" hidden>
+    <span aria-hidden="true">⚠️</span>
+    <div><strong>Dati non aggiornati</strong><span id="banner-text"></span></div>
+  </div>
+
+  <nav class="filters" aria-label="Filtri">
+    <label title="Le ultime N partite che rispettano anche gli altri filtri">Partite
+      <select id="f-period">
+        <option value="all">Tutto lo storico</option>
+        <option value="n:10">Ultime 10</option>
+        <option value="n:20">Ultime 20</option>
+        <option value="n:50">Ultime 50</option>
+        <option value="n:100">Ultime 100</option>
+        <option value="n:200">Ultime 200</option>
+      </select>
+    </label>
+    <label>Solo / Duo <select id="f-queue"></select></label>
+    <label>Ruolo <select id="f-role"></select></label>
+    <label>Campione <select id="f-champ"></select></label>
+    <label>Confronta con <select id="f-bench"></select></label>
+    <span class="count" id="f-count"></span>
+  </nav>
+
+  <section class="tiles" id="tiles" aria-label="Riepilogo"></section>
+
+  <section class="grid">
+    <article class="card wide">
+      <div class="card-head">
+        <div>
+          <h2>Profilo abilità</h2>
+          <p class="sub" id="skills-sub"></p>
+        </div>
+        <div class="seg" id="radar-mode" role="group" aria-label="Vista del radar">
+          <button type="button" data-mode="all">Tutte le partite</button>
+          <button type="button" data-mode="queue">Solo vs Duo</button>
+          <button type="button" data-mode="recent">Ultime 20 vs precedenti</button>
+        </div>
+      </div>
+      <div class="skills">
+        <div class="chart radar" id="radar"></div>
+        <div id="skills-side"></div>
+      </div>
+      <p class="sub" style="margin:14px 0 0">Ogni asse va da 0 a 100: 50 = in linea con il riferimento scelto in "Confronta con".
+        <a href="#guida">Come vengono calcolati i punteggi →</a></p>
+    </article>
+
+    <article class="card">
+      <h2>Punteggio partita nel tempo</h2>
+      <p class="sub">Media mobile sulle ultime 10 partite di ogni coda. 50 = livello del riferimento.</p>
+      <div class="chart" id="score-trend"></div>
+    </article>
+
+    <article class="card">
+      <h2>Cosa incide sulle tue vittorie</h2>
+      <p class="sub">Win rate quando fai meglio o peggio della tua mediana in ogni parametro. In alto ciò che fa più differenza.</p>
+      <div class="table-wrap" id="impact"></div>
+    </article>
+
+    <article class="card wide">
+      <h2>Avversario di corsia</h2>
+      <p class="sub" id="lane-sub"></p>
+      <div class="insights" id="lane-insights"></div>
+      <div class="comm">
+        <div>
+          <h3 class="mini">Esito della fase di corsia e win rate</h3>
+          <div class="bars" id="lane-outcome"></div>
+        </div>
+        <div>
+          <h3 class="mini">In media contro il tuo avversario</h3>
+          <div class="stats" id="lane-stats"></div>
+        </div>
+      </div>
+      <h3 class="mini" style="margin-top:22px">Matchup</h3>
+      <div class="table-wrap tall" id="lane-matchups"></div>
+      <p class="sub" style="margin:8px 0 0">* A fine partita: dipende anche da chi ha vinto. Avversari incontrati almeno 2 volte. <a href="#guida">Come leggere questa sezione →</a></p>
+    </article>
+
+    <article class="card wide">
+      <h2>Andamento dei parametri</h2>
+      <p class="sub" id="trends-sub"></p>
+      <div id="trends-legend"></div>
+      <div class="multiples" id="trends"></div>
+    </article>
+
+    <article class="card wide">
+      <h2>Comunicazione</h2>
+      <p class="sub" id="comm-sub"></p>
+      <div class="insights" id="comm-insights"></div>
+      <div class="comm">
+        <div class="axes" id="comm-groups"></div>
+        <div class="table-wrap" id="comm-table"></div>
+      </div>
+      <div class="comm-bottom">
+        <div><h3 class="mini">Ping a partita nel tempo</h3><div class="chart" id="comm-trend"></div></div>
+        <div><h3 class="mini">Ping e vittorie</h3><div class="table-wrap" id="comm-impact"></div></div>
+      </div>
+    </article>
+
+    <article class="card wide">
+      <h2>Solo Queue vs Duo Queue</h2>
+      <p class="sub">Duo = almeno un partner rilevato in squadra. Questa tabella ignora il filtro Coda.</p>
+      <div id="partners"></div>
+      <div class="table-wrap" id="cmp"></div>
+    </article>
+
+    <article class="card">
+      <h2>Win rate nel tempo</h2>
+      <p class="sub">Media mobile sulle ultime 10 partite. Linea di riferimento al 50%.</p>
+      <div class="chart" id="wr-trend"></div>
+    </article>
+
+    <article class="card">
+      <h2>Andamento LP</h2>
+      <p class="sub">Uno snapshot per ogni aggiornamento giornaliero. Non dipende dai filtri.</p>
+      <div class="chart" id="lp-trend"></div>
+      <details id="lp-details"><summary>Mostra i dati</summary><div class="table-wrap" id="lp-table"></div></details>
+    </article>
+
+    <article class="card wide">
+      <h2>Campioni</h2>
+      <p class="sub">Clicca una riga per filtrare la dashboard su quel campione.</p>
+      <div class="table-wrap tall" id="champs"></div>
+    </article>
+
+    <article class="card">
+      <h2>Win rate per ruolo</h2>
+      <p class="sub">Barre in trasparenza = meno di 3 partite.</p>
+      <div class="bars" id="roles"></div>
+    </article>
+
+    <article class="card">
+      <h2>Win rate per durata della partita</h2>
+      <p class="sub">Indica se rendi meglio nelle partite corte o lunghe.</p>
+      <div class="bars" id="durations"></div>
+    </article>
+
+    <article class="card">
+      <h2>Quando giochi meglio</h2>
+      <p class="sub">Win rate per giorno e fascia oraria (ora locale). Le celle con meno di 3 partite restano grigie.</p>
+      <div class="heat" id="heat"></div>
+      <div class="heat-legend"><span>30%</span><span class="ramp"></span><span>70%</span><span>· tratteggio = nessuna partita</span></div>
+    </article>
+
+    <article class="card">
+      <h2>Mentalità e sessioni</h2>
+      <p class="sub">Una sessione finisce dopo più di 60 minuti di pausa tra due partite.</p>
+      <div class="table-wrap" id="habits"></div>
+    </article>
+
+    <article class="card">
+      <h2>Obiettivi e win rate</h2>
+      <p class="sub">Win rate quando la tua squadra ottiene (o no) il primo obiettivo.</p>
+      <div class="table-wrap" id="objectives"></div>
+    </article>
+
+    <article class="card">
+      <h2>Statistiche avanzate</h2>
+      <p class="sub">Medie per partita nel filtro corrente.</p>
+      <div class="stats" id="advanced"></div>
+    </article>
+
+    <article class="card wide">
+      <h2>Compagni frequenti</h2>
+      <p class="sub">Giocatori trovati nella tua squadra almeno 2 volte.</p>
+      <div class="table-wrap tall" id="mates"></div>
+    </article>
+
+    <article class="card wide">
+      <h2>Ultime partite</h2>
+      <p class="sub">Le 20 partite più recenti nel filtro corrente.</p>
+      <div class="table-wrap" id="recent"></div>
+    </article>
+
+    <article class="card wide" id="guida">
+      <h2>Guida ai parametri</h2>
+      <p class="sub">Come sono calcolati i punteggi, con chi ti confronti e come leggere ogni indicatore.</p>
+      <div class="guide" id="guide"></div>
+    </article>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<div id="tooltip" role="tooltip"></div>
+
+<script>const ALL = /*__DASHBOARD_DATA__*/null;</script>
+<script>
+(() => {
+  'use strict';
+  if (!ALL || !(ALL.accounts || []).length) { document.body.textContent = 'Dati mancanti: genera la dashboard con lol_dashboard.py'; return; }
+
+  // ---------------------------------------------------------------- costanti
+  const NS = 'http://www.w3.org/2000/svg';
+  const ROLE_LABEL = { TOP: 'Top', JUNGLE: 'Jungle', MIDDLE: 'Mid', BOTTOM: 'ADC', UTILITY: 'Support' };
+  const ROLE_ORDER = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'];
+  const DAYS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+  const BANDS = ['00–04', '04–08', '08–12', '12–16', '16–20', '20–24'];
+  const TIERS = ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER'];
+  const DIVS = ['IV', 'III', 'II', 'I'];
+  const APEX = TIERS.indexOf('MASTER') * 400;   // da Master in su la scala LP e' unica
+  const SESSION_GAP_MS = 60 * 60 * 1000;
+  const STORE_KEY = 'lol-dashboard-filters';
+
+  // ---------------------------------------------------------------- utility
+  const $ = (id) => document.getElementById(id);
+  const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+  const avg = (arr) => (arr.length ? sum(arr) / arr.length : null);
+  const winRate = (gs) => (gs.length ? gs.filter((g) => g.win).length / gs.length : null);
+  const scored = (gs) => gs.map((g) => g.score).filter((v) => v != null);
+  const stdev = (arr) => { const m = avg(arr); return arr.length > 1 ? Math.sqrt(avg(arr.map((v) => (v - m) ** 2))) : null; };
+  const median = (arr) => { const s = arr.slice().sort((a, b) => a - b), h = s.length / 2; return s.length ? (s.length % 2 ? s[Math.floor(h)] : (s[h - 1] + s[h]) / 2) : null; };
+  const kda = (gs) => (gs.length ? sum(gs.map((g) => g.k + g.a)) / Math.max(1, sum(gs.map((g) => g.d))) : null);
+  const fmt = (v, d = 1) => (v == null || !isFinite(v) ? '–' : v.toLocaleString('it-IT', { minimumFractionDigits: d, maximumFractionDigits: d }));
+  const pct = (v, d = 1) => (v == null ? '–' : fmt(v * 100, d) + '%');
+  const signed = (v, d = 1) => (v == null || !isFinite(v) ? '–' : (v > 0 ? '+' : '') + fmt(v, d));
+  const share = (gs, pred) => (gs.length ? gs.filter(pred).length / gs.length : null);
+  const cap = (s) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : '');
+  const roleLabel = (r) => ROLE_LABEL[r] || '?';
+  const dateLabel = (ts, withTime = false) => new Date(ts).toLocaleString('it-IT',
+    withTime ? { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' } : { day: '2-digit', month: '2-digit', year: '2-digit' });
+
+  // Crea un elemento DOM. I testi passano sempre da textContent: nomi e campioni arrivano dall'API.
+  function el(tag, attrs = {}, ...children) {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') n.className = v;
+      else if (k === 'text') n.textContent = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+      else n.setAttribute(k, v);
+    }
+    for (const c of children) if (c != null) n.append(c);
+    return n;
+  }
+  function svg(tag, attrs = {}) {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  }
+  function champIcon(name) {
+    const wrap = el('span', { class: 'champ' });
+    if (DATA.ddragon) {
+      const img = el('img', { src: `https://ddragon.leagueoflegends.com/cdn/${DATA.ddragon}/img/champion/${encodeURIComponent(name)}.png`, alt: '', loading: 'lazy' });
+      img.addEventListener('error', () => img.remove());
+      wrap.append(img);
+    }
+    wrap.append(el('span', { text: name }));
+    return wrap;
+  }
+  // leftCols: indici delle colonne di testo (la prima e' sempre a sinistra, i numeri a destra)
+  function table(headers, rows, { onRowClick, leftCols = [] } = {}) {
+    const left = (i) => (leftCols.includes(i) ? 'left' : null);
+    const t = el('table');
+    t.append(el('thead', {}, el('tr', {}, ...headers.map((h, i) => el('th', { text: h, class: left(i) })))));
+    const body = el('tbody');
+    for (const r of rows) {
+      const tr = el('tr', { class: onRowClick ? 'clickable' : null });
+      r.cells.forEach((c, i) => tr.append(el('td', { class: left(i) }, c instanceof Node ? c : document.createTextNode(c))));
+      if (onRowClick) tr.addEventListener('click', () => onRowClick(r));
+      body.append(tr);
+    }
+    t.append(body);
+    return t;
+  }
+  function delta(value, good, text) {
+    if (value == null || Math.abs(value) < 1e-9) return el('span', { class: 'delta-flat', text: text ?? '–' });
+    const better = good === 0 ? null : (value > 0) === (good > 0);
+    const cls = better == null ? 'delta-flat' : better ? 'delta-up' : 'delta-down';
+    return el('span', { class: cls, text: `${value > 0 ? '▲ +' : '▼ '}${text}` });
+  }
+
+  // ---------------------------------------------------------------- tooltip
+  const tip = $('tooltip');
+  function showTip(x, y, title, rows) {
+    tip.replaceChildren(el('div', { class: 't-title', text: title }),
+      ...rows.map(([value, label]) => el('div', { class: 't-row' }, el('strong', { text: value }), el('span', { text: label }))));
+    tip.style.opacity = 1;
+    const r = tip.getBoundingClientRect();
+    tip.style.left = Math.min(window.innerWidth - r.width - 8, x + 14) + 'px';
+    tip.style.top = Math.max(8, y - r.height - 10) + 'px';
+  }
+  const hideTip = () => { tip.style.opacity = 0; };
+  function hoverable(node, title, rows) {
+    node.tabIndex = 0;
+    node.addEventListener('pointermove', (e) => showTip(e.clientX, e.clientY, title, rows));
+    node.addEventListener('pointerleave', hideTip);
+    node.addEventListener('focus', () => { const r = node.getBoundingClientRect(); showTip(r.right, r.top + 8, title, rows); });
+    node.addEventListener('blur', hideTip);
+  }
+
+  // ---------------------------------------------------------------- dati derivati
+  // Partite dalla piu' vecchia alla piu' recente, con sessione e risultato precedente.
+  // Solo Ranked Solo/Duo (queueId 420): lo script scarica gia' solo queste, qui e' un secondo controllo
+  const RANKED_SOLO_DUO = 420;
+  let DATA, games = [];
+  // Prepara i dati dell'account scelto: le medie per lega sono comuni, la "lobby" e' del singolo account
+  function prepareAccount(acc) {
+    DATA = { ...ALL, ...acc, benchmarks: { lobby: acc.lobby, ...ALL.tierBenchmarks } };
+    BENCH = DATA.benchmarks;
+    games = DATA.games.filter((g) => g.queueId === RANKED_SOLO_DUO).sort((a, b) => a.ts - b.ts);
+    let session = 0, inSession = 0, lossStreak = 0;
+    games.forEach((g, i) => {
+      const prev = games[i - 1];
+      const newSession = !prev || g.ts - (prev.ts + prev.dur * 60000) > SESSION_GAP_MS;
+      if (newSession) { session++; inSession = 0; lossStreak = 0; }
+      g.session = session;
+      g.sessionGame = ++inSession;
+      g.prevWin = newSession ? null : prev.win;
+      g.lossesBefore = lossStreak;          // sconfitte consecutive prima di questa partita, nella sessione
+      lossStreak = g.win ? 0 : lossStreak + 1;
+      const d = new Date(g.ts);
+      g.day = (d.getDay() + 6) % 7;         // 0 = lunedi'
+      g.band = Math.floor(d.getHours() / 4);
+    });
+  }
+
+  // ---------------------------------------------------------------- filtri
+  // Ogni account ricorda i suoi filtri
+  let filters = {};
+  function loadFilters() {
+    filters = { period: 'all', queue: 'all', role: 'all', champ: 'all' };
+    try { Object.assign(filters, JSON.parse(localStorage.getItem(`${STORE_KEY}:${DATA.slug}`) || '{}')); } catch (e) { /* storage non disponibile */ }
+  }
+
+  function setOptions(select, options, current) {
+    select.replaceChildren(...options.map(([value, label]) => el('option', { value, text: label })));
+    select.value = options.some(([v]) => v === current) ? current : 'all';
+  }
+  function initFilters() {
+    const byCount = (key) => Object.entries(games.reduce((acc, g) => ((acc[g[key]] = (acc[g[key]] || 0) + 1), acc), {}))
+      .sort((a, b) => b[1] - a[1]);
+    if (![...$('f-period').options].some((o) => o.value === filters.period)) filters.period = 'all';   // es. vecchio filtro per giorni salvato
+    $('f-period').value = filters.period;
+    setOptions($('f-queue'), [['all', 'Tutte'], ['Solo', 'Solo Queue'], ['Duo', 'Duo Queue'],
+      ...DATA.partners.map((p) => ['p:' + p.name, 'Duo con ' + p.name])], filters.queue);
+    setOptions($('f-role'), [['all', 'Tutti'], ...ROLE_ORDER.filter((r) => games.some((g) => g.role === r)).map((r) => [r, roleLabel(r)])], filters.role);
+    setOptions($('f-champ'), [['all', 'Tutti'], ...byCount('champ').map(([c, n]) => [c, `${c} (${n})`])], filters.champ);
+    for (const [id, key] of [['f-period', 'period'], ['f-queue', 'queue'], ['f-role', 'role'], ['f-champ', 'champ']]) {
+      $(id).onchange = (e) => { filters[key] = e.target.value; render(); };
+    }
+    // Il riferimento non filtra le partite: cambia il metro con cui vengono valutate
+    const benches = benchOptions();
+    if (!benches.some(([k]) => k === filters.bench)) filters.bench = benches.some(([k]) => k === defaultBench()) ? defaultBench() : (benches[0] || ['lobby'])[0];
+    $('f-bench').replaceChildren(...benches.map(([value, label]) => el('option', { value, text: label })));
+    $('f-bench').value = filters.bench;
+    $('f-bench').onchange = (e) => { filters.bench = e.target.value; scoreGames(); render(); };
+    radarMode = ['all', 'queue', 'recent'].includes(filters.radar) ? filters.radar : 'all';
+    document.querySelectorAll('#radar-mode button').forEach((b) => { b.onclick = () => {
+      radarMode = filters.radar = b.dataset.mode;
+      renderSkills(applyFilters());
+    }; });
+  }
+  // Prima ruolo, campione e Solo/Duo, poi le ultime N partite rimaste (games e' ordinato dalla piu' vecchia)
+  function applyFilters({ ignoreQueue = false } = {}) {
+    const list = games.filter((g) => (filters.role === 'all' || g.role === filters.role)
+      && (filters.champ === 'all' || g.champ === filters.champ)
+      && (ignoreQueue || filters.queue === 'all'
+        || (filters.queue.startsWith('p:') ? g.partners.includes(filters.queue.slice(2)) : g.queue === filters.queue)));
+    const n = filters.period.startsWith('n:') ? Number(filters.period.slice(2)) : 0;
+    return n ? list.slice(-n) : list;
+  }
+
+  // ---------------------------------------------------------------- intestazione
+  function renderHeader() {
+    $('player').textContent = DATA.player;
+    document.title = `${DATA.player} · LoL Ranked Dashboard`;
+    $('updated').textContent = `Aggiornata il ${new Date(DATA.generatedAt).toLocaleString('it-IT', { dateStyle: 'full', timeStyle: 'short' })} · ${games.length} partite in archivio`;
+    renderStrip();
+    $('banner').hidden = DATA.status.ok;
+    $('banner-text').textContent = DATA.status.message;
+    // Account: il nome cambia account nella stessa pagina, la freccia lo apre in un'altra finestra
+    const host = $('accounts');
+    host.hidden = ALL.accounts.length < 2;
+    host.replaceChildren(el('span', { text: 'Account:' }), ...ALL.accounts.map((a) => el('span', { class: 'acc' + (a.slug === DATA.slug ? ' active' : '') },
+      el('button', { type: 'button', class: 'acc-main', text: a.player, 'aria-pressed': String(a.slug === DATA.slug), onclick: () => switchAccount(a.slug) }),
+      el('button', { type: 'button', class: 'acc-new', text: '↗', title: `Apri ${a.player} in una nuova finestra`, 'aria-label': `Apri ${a.player} in una nuova finestra`,
+        onclick: () => openAccountWindow(a.slug) }))),
+      el('a', { href: 'index.html', text: 'Riepilogo account' }));
+    $('footer').textContent = `Dati: Riot Games API (Match-V5, League-V4) · regione ${DATA.region} · soglia partner duo ${pct(DATA.threshold, 0)}. `
+      + 'Non approvato da Riot Games.';
+  }
+
+  // ---------------------------------------------------------------- barra riepilogo
+  const TIER_COLORS = { IRON: '#8b7d78', BRONZE: '#b7754a', SILVER: '#a9b8c8', GOLD: '#e0b04a', PLATINUM: '#47b9aa', EMERALD: '#35b56c',
+    DIAMOND: '#6b97ea', MASTER: '#b066e0', GRANDMASTER: '#e0574d', CHALLENGER: '#f3ce6a', UNRANKED: '#75739a' };
+  // Stemma stilizzato del rank, nel colore della lega
+  function crest(tier) {
+    const c = TIER_COLORS[tier] || TIER_COLORS.UNRANKED;
+    const s = svg('svg', { viewBox: '0 0 48 48', class: 'crest', 'aria-hidden': 'true' });
+    s.style.setProperty('--crest-glow', c + '66');
+    s.append(svg('path', { d: 'M24 3l17 8v13c0 10-7.5 17.5-17 21C14.5 41.5 7 34 7 24V11l17-8z', fill: c, 'fill-opacity': 0.16, stroke: c, 'stroke-width': 2 }),
+      svg('path', { d: 'M15 19l9 6 9-6M15 27l9 6 9-6', fill: 'none', stroke: c, 'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    return s;
+  }
+  function champImg(name) {
+    if (!DATA.ddragon) return null;
+    const img = el('img', { src: `https://ddragon.leagueoflegends.com/cdn/${DATA.ddragon}/img/champion/${encodeURIComponent(name)}.png`, alt: name, title: name });
+    img.addEventListener('error', () => img.remove());
+    return img;
+  }
+  function renderStrip() {
+    const wl = (w, l) => el('span', {}, el('span', { class: 'w', text: `${w}V` }), document.createTextNode(' '), el('span', { class: 'l', text: `${l}S` }));
+    const wr = (v) => el('span', { class: v >= 0.5 ? 'good' : 'bad', text: pct(v) });
+    const kdaLine = (gs) => {
+      const ratio = kda(gs);
+      return el('div', { class: 'small' }, document.createTextNode(`${fmt(avg(gs.map((g) => g.k)))} / ${fmt(avg(gs.map((g) => g.d)))} / ${fmt(avg(gs.map((g) => g.a)))} `),
+        el('span', { class: ratio >= 3 ? 'good' : ratio < 2 ? 'bad' : '', text: `(${fmt(ratio, 2)})` }), document.createTextNode(' KDA'));
+    };
+    const items = [];
+    const r = DATA.rank;
+    const total = r ? r.wins + r.losses : 0;
+    items.push(el('div', { class: 'strip-item' }, crest(r ? r.tier : 'UNRANKED'), el('div', {},
+      el('div', { class: 'lbl', text: 'Rank Solo/Duo' }),
+      el('div', { class: 'big', text: !r ? 'Non disponibile' : r.tier === 'UNRANKED' ? 'Unranked' : `${cap(r.tier)} ${TIERS.indexOf(r.tier) >= 7 ? '' : r.rank} · ${r.lp} LP` }),
+      total ? el('div', { class: 'small' }, wl(r.wins, r.losses), document.createTextNode(' · '), wr(r.wins / total)) : null)));
+    const last = games.slice(-10), w = last.filter((g) => g.win).length;
+    items.push(el('div', { class: 'strip-item' }, el('div', {},
+      el('div', { class: 'lbl', text: 'Ultime 10 partite' }),
+      el('div', { class: 'big' }, wl(w, last.length - w), document.createTextNode(' · '), wr(winRate(last))), kdaLine(last))));
+    // i due campioni piu' giocati nelle ultime 20 partite
+    const recent = games.slice(-20), byChamp = new Map();
+    for (const g of recent) byChamp.set(g.champ, [...(byChamp.get(g.champ) || []), g]);
+    for (const [champ, cg] of [...byChamp].sort((a, b) => b[1].length - a[1].length).slice(0, 2)) {
+      const cw = cg.filter((g) => g.win).length;
+      items.push(el('div', { class: 'strip-item' }, champImg(champ), el('div', {},
+        el('div', { class: 'lbl', text: `${champ} · ultime 20` }),
+        el('div', { class: 'big' }, wl(cw, cg.length - cw), document.createTextNode(' · '), wr(cw / cg.length)), kdaLine(cg))));
+    }
+    $('strip').replaceChildren(...items);
+    // avatar: il campione piu' giocato in assoluto
+    const counts = new Map();
+    for (const g of games) counts.set(g.champ, (counts.get(g.champ) || 0) + 1);
+    const main = [...counts].sort((a, b) => b[1] - a[1])[0];
+    const img = main && champImg(main[0]);
+    $('avatar').replaceChildren(img || el('span'));
+  }
+
+  // ---------------------------------------------------------------- tiles
+  function currentStreak(gs) {
+    if (!gs.length) return '–';
+    const last = gs[gs.length - 1].win;
+    let n = 0;
+    for (let i = gs.length - 1; i >= 0 && gs[i].win === last; i--) n++;
+    return `${n} ${last ? (n === 1 ? 'vittoria' : 'vittorie') : (n === 1 ? 'sconfitta' : 'sconfitte')}`;
+  }
+  function renderTiles(gs) {
+    const wins = gs.filter((g) => g.win).length;
+    const last10 = gs.slice(-10);
+    const cs10 = gs.filter((g) => g.cs10 != null).map((g) => g.cs10);
+    const tiles = [
+      { label: 'Win rate', value: pct(winRate(gs)), meta: `${wins}V · ${gs.length - wins}S`, hero: true, cls: winRate(gs) >= 0.5 ? 'good' : 'bad' },
+      { label: 'Punteggio partita', value: fmt(avg(scored(gs)), 0), meta: `Costanza: ± ${fmt(stdev(scored(gs)), 0)} punti` },
+      { label: 'KDA', value: fmt(kda(gs), 2), meta: `${fmt(avg(gs.map((g) => g.k)))} / ${fmt(avg(gs.map((g) => g.d)))} / ${fmt(avg(gs.map((g) => g.a)))}` },
+      { label: 'CS/min', value: fmt(avg(gs.map((g) => g.cs / g.dur)), 2), meta: `CS a 10 min: ${fmt(avg(cs10), 0)}` },
+      { label: 'Kill participation', value: pct(avg(gs.map((g) => g.kp)), 0), meta: `Quota danni: ${pct(avg(gs.map((g) => g.dmgShare)), 0)}` },
+      { label: 'Danni/min', value: fmt(avg(gs.map((g) => g.dmg / g.dur)), 0), meta: `Gold/min: ${fmt(avg(gs.map((g) => g.gold / g.dur)), 0)}` },
+      { label: 'Vision/min', value: fmt(avg(gs.map((g) => g.vis / g.dur)), 2), meta: `${fmt(avg(gs.map((g) => g.ctrl)), 1)} control ward a partita` },
+      { label: 'Serie attuale', value: currentStreak(gs), meta: `Ultime 10: ${last10.filter((g) => g.win).length}V ${last10.filter((g) => !g.win).length}S` },
+    ];
+    $('tiles').replaceChildren(...tiles.map((t) => el('div', { class: 'tile' + (t.hero ? ' hero' : '') },
+      el('div', { class: 'label', text: t.label }), el('div', { class: 'value' + (t.cls ? ' ' + t.cls : ''), text: t.value }), el('div', { class: 'meta', text: t.meta }))));
+  }
+
+  // ---------------------------------------------------------------- Solo vs Duo
+  // good: +1 = piu' alto e' meglio, -1 = piu' basso e' meglio, 0 = neutro
+  const METRICS = [
+    { label: 'Partite', fn: (gs) => gs.length, f: (v) => fmt(v, 0), noDiff: true },
+    { label: 'Win rate', fn: winRate, f: (v) => pct(v), df: (v) => fmt(v * 100, 1) + ' pt', good: 1 },
+    { label: 'Punteggio partita (0–100)', fn: (gs) => avg(scored(gs)), f: (v) => fmt(v, 0), good: 1 },
+    { label: 'Kills', fn: (gs) => avg(gs.map((g) => g.k)), f: (v) => fmt(v, 2), good: 1 },
+    { label: 'Deaths', fn: (gs) => avg(gs.map((g) => g.d)), f: (v) => fmt(v, 2), good: -1 },
+    { label: 'Assists', fn: (gs) => avg(gs.map((g) => g.a)), f: (v) => fmt(v, 2), good: 1 },
+    { label: 'KDA (K+A)/D', fn: kda, f: (v) => fmt(v, 2), good: 1 },
+    { label: 'CS/min', fn: (gs) => avg(gs.map((g) => g.cs / g.dur)), f: (v) => fmt(v, 2), good: 1 },
+    { label: 'Gold/min', fn: (gs) => avg(gs.map((g) => g.gold / g.dur)), f: (v) => fmt(v, 0), good: 1 },
+    { label: 'Danni a campioni/min', fn: (gs) => avg(gs.map((g) => g.dmg / g.dur)), f: (v) => fmt(v, 0), good: 1 },
+    { label: 'Kill participation', fn: (gs) => avg(gs.map((g) => g.kp)), f: (v) => pct(v), df: (v) => fmt(v * 100, 1) + ' pt', good: 1 },
+    { label: 'Quota danni del team', fn: (gs) => avg(gs.map((g) => g.dmgShare)), f: (v) => pct(v), df: (v) => fmt(v * 100, 1) + ' pt', good: 1 },
+    { label: 'Danni subiti', fn: (gs) => avg(gs.map((g) => g.taken)), f: (v) => fmt(v, 0), good: 0 },
+    { label: 'Danni mitigati', fn: (gs) => avg(gs.map((g) => g.mitig)), f: (v) => fmt(v, 0), good: 0 },
+    { label: 'Vision score/min', fn: (gs) => avg(gs.map((g) => g.vis / g.dur)), f: (v) => fmt(v, 2), good: 1 },
+    { label: 'Tempo da morto', fn: (gs) => avg(gs.map((g) => g.dead / (g.dur * 60))), f: (v) => pct(v), df: (v) => fmt(v * 100, 1) + ' pt', good: -1 },
+    { label: 'Durata media (min)', fn: (gs) => avg(gs.map((g) => g.dur)), f: (v) => fmt(v, 1), good: 0 },
+  ];
+  function renderComparison() {
+    const gs = applyFilters({ ignoreQueue: true });
+    const partnersHost = $('partners');
+    partnersHost.replaceChildren();
+    if (DATA.partners.length) {
+      partnersHost.append(el('span', { class: 'sub', text: 'Partner rilevati: ' }),
+        ...DATA.partners.map((p) => el('span', { class: 'chip', text: `${p.name} · ${p.games} partite` })));
+    } else {
+      partnersHost.append(el('p', { class: 'sub', text: `Nessun partner duo rilevato (soglia ${pct(DATA.threshold, 0)} delle partite): tutte le partite contano come Solo Queue.` }));
+    }
+    const groups = [['Solo Queue', gs.filter((g) => g.queue === 'Solo')], ['Duo Queue', gs.filter((g) => g.queue === 'Duo')]];
+    const extra = DATA.partners.length > 1 ? DATA.partners.map((p) => ['Con ' + p.name, gs.filter((g) => g.partners.includes(p.name))]) : [];
+    const headers = ['Metrica', 'Solo Queue', 'Duo Queue', 'Differenza Duo − Solo', ...extra.map(([n]) => n)];
+    const rows = METRICS.map((m) => {
+      const [solo, duo] = groups.map(([, g]) => (g.length ? m.fn(g) : null));
+      const diff = !m.noDiff && solo != null && duo != null ? duo - solo : null;
+      return {
+        cells: [m.label, m.f(solo), m.f(duo),
+          m.noDiff ? '' : delta(diff, m.good ?? 0, diff == null ? '–' : (m.df || m.f)(Math.abs(diff))),
+          ...extra.map(([, g]) => (g.length ? m.f(m.fn(g)) : '–'))],
+      };
+    });
+    $('cmp').replaceChildren(table(headers, rows));
+  }
+
+  // ---------------------------------------------------------------- grafico a linee
+  // series: [{ name, color, points: [{ x (timestamp), y, title?, rows? }] }]
+  // o: { yMin, yMax, ticks, yFmt, ref, refLabel, height, left, endFmt, empty, aria, legend }
+  // Asse X temporale. Con una serie il tooltip mostra title/rows del punto, con piu' serie il valore di ciascuna.
+  function lineChart(host, series, o) {
+    host.replaceChildren();
+    series = series.filter((sr) => sr.points.length >= 2);
+    if (!series.length) { host.append(el('p', { class: 'empty', text: o.empty })); return; }
+    if (o.legend !== false && (series.length > 1 || o.refLabel)) host.append(legend(series.length > 1 ? series : [], o.refLabel));
+    const single = series.length === 1;
+    const W = Math.max(240, host.clientWidth), H = o.height || 220;
+    const m = { t: 14, r: single && o.endFmt ? 46 : 14, b: 26, l: o.left || 40 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const all = series.flatMap((sr) => sr.points);
+    const x0 = Math.min(...all.map((p) => p.x)), x1 = Math.max(...all.map((p) => p.x));
+    const X = (x) => m.l + (x1 === x0 ? iw / 2 : ((x - x0) / (x1 - x0)) * iw);
+    const Y = (v) => m.t + ih - ((Math.min(o.yMax, Math.max(o.yMin, v)) - o.yMin) / (o.yMax - o.yMin)) * ih;
+    const s = svg('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': o.aria });
+
+    for (const t of o.ticks) {
+      s.append(svg('line', { class: 'gridline', x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t) }));
+      const label = svg('text', { class: 'tick', x: m.l - 6, y: Y(t) + 4, 'text-anchor': 'end' });
+      label.textContent = o.yFmt(t);
+      s.append(label);
+    }
+    if (o.ref != null) s.append(svg('line', { class: 'refline', x1: m.l, x2: W - m.r, y1: Y(o.ref), y2: Y(o.ref) }));
+    // etichette asse X: inizio, centro, fine del periodo
+    [[x0, 'start'], [(x0 + x1) / 2, 'middle'], [x1, 'end']].forEach(([x, anchor]) => {
+      const label = svg('text', { class: 'tick', x: X(x), y: H - 6, 'text-anchor': anchor });
+      label.textContent = dateLabel(x);
+      s.append(label);
+    });
+    for (const sr of series) {
+      const line = sr.points.map((p, i) => `${i ? 'L' : 'M'}${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join('');
+      if (single) s.append(svg('path', { class: 'area', d: `${line}L${X(sr.points.at(-1).x)},${m.t + ih}L${X(sr.points[0].x)},${m.t + ih}Z`, style: `fill: ${sr.color}` }));
+      s.append(svg('path', { class: 'line', d: line, style: `stroke: ${sr.color}` }));
+    }
+    if (single && o.endFmt) {
+      const last = series[0].points.at(-1);
+      s.append(svg('circle', { class: 'dot', cx: X(last.x), cy: Y(last.y), r: 4, style: `fill: ${series[0].color}` }));
+      const endLabel = svg('text', { class: 'endlabel', x: X(last.x) + 8, y: Y(last.y) + 4 });
+      endLabel.textContent = o.endFmt(last.y);
+      s.append(endLabel);
+    }
+
+    // livello hover: il crosshair si aggancia al punto piu' vicino, poi ogni serie mostra il suo punto piu' vicino
+    const nearest = (pts, x) => pts.reduce((b, p) => (Math.abs(p.x - x) < Math.abs(b.x - x) ? p : b));
+    const cross = svg('line', { class: 'cross', y1: m.t, y2: m.t + ih, visibility: 'hidden' });
+    const dots = series.map((sr) => svg('circle', { class: 'dot', r: 5, visibility: 'hidden', style: `fill: ${sr.color}` }));
+    const hit = svg('rect', { x: m.l - 8, y: 0, width: iw + 16, height: H, fill: 'transparent' });
+    s.append(cross, ...dots, hit);
+    hit.addEventListener('pointermove', (e) => {
+      const r = s.getBoundingClientRect();
+      const px = ((e.clientX - r.left) * W) / r.width;
+      const snap = nearest(all, x0 + ((px - m.l) / iw) * (x1 - x0)).x;
+      cross.setAttribute('x1', X(snap)); cross.setAttribute('x2', X(snap)); cross.setAttribute('visibility', 'visible');
+      const picked = series.map((sr) => nearest(sr.points, snap));
+      picked.forEach((p, i) => { dots[i].setAttribute('cx', X(p.x)); dots[i].setAttribute('cy', Y(p.y)); dots[i].setAttribute('visibility', 'visible'); });
+      if (single && picked[0].rows) showTip(e.clientX, e.clientY, picked[0].title, picked[0].rows);
+      else showTip(e.clientX, e.clientY, dateLabel(snap, true), [...picked.map((p, i) => [o.yFmt(p.y), series[i].name]),
+        ...(o.ref != null ? [[o.yFmt(o.ref), o.refLabel || 'riferimento']] : [])]);
+    });
+    hit.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); dots.forEach((d) => d.setAttribute('visibility', 'hidden')); hideTip(); });
+    host.append(s);
+  }
+  function legend(series, refLabel) {
+    const item = (color, name, cls = '') => {
+      const key = el('span', { class: 'lkey ' + cls });
+      if (color) key.style.background = color;
+      return el('span', {}, key, document.createTextNode(name));
+    };
+    return el('div', { class: 'legend' }, ...series.map((sr) => item(sr.color, sr.name)), refLabel ? item(null, refLabel, 'ref') : null);
+  }
+  // Tick "puliti" (1, 2, 2.5, 5 x 10^n) che coprono [min, max]
+  function niceTicks(min, max, count = 4) {
+    if (max - min < 1e-9) { min -= 1; max += 1; }
+    const raw = (max - min) / count, mag = 10 ** Math.floor(Math.log10(raw));
+    const step = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((st) => st >= raw);
+    const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
+    const ticks = [];
+    for (let t = lo; t <= hi + step / 2; t += step) ticks.push(+t.toFixed(10));
+    return { ticks, min: lo, max: hi };
+  }
+
+  function renderWinRateTrend(gs) {
+    const N = 10;
+    const points = [];
+    for (let i = N - 1; i < gs.length; i++) {
+      const w = gs.slice(i - N + 1, i + 1);
+      const g = gs[i];
+      points.push({ x: g.ts, y: winRate(w), title: `Partita del ${dateLabel(g.ts, true)}`,
+        rows: [[pct(winRate(w), 0), 'win rate ultime 10'], [g.win ? 'Vittoria' : 'Sconfitta', `${g.champ} ${g.k}/${g.d}/${g.a}`]] });
+    }
+    lineChart($('wr-trend'), [{ name: 'Win rate', color: 'var(--s1)', points }], {
+      yMin: 0, yMax: 1, ticks: [0, 0.25, 0.5, 0.75, 1], ref: 0.5, yFmt: (v) => pct(v, 0), endFmt: (v) => pct(v, 0),
+      empty: `Servono almeno ${N + 1} partite nel filtro corrente.`, aria: 'Win rate, media mobile sulle ultime 10 partite',
+    });
+  }
+
+  // LP su un'unica scala: ogni tier vale 400 punti (4 divisioni da 100), da Master in su conta solo l'LP
+  const ladder = (r) => (TIERS.indexOf(r.tier) >= 7 ? APEX + r.lp : TIERS.indexOf(r.tier) * 400 + DIVS.indexOf(r.rank) * 100 + r.lp);
+  function ladderLabel(v) {
+    if (v >= APEX) return `M+ ${Math.round(v - APEX)}`;
+    const tier = Math.floor(v / 400), div = Math.floor((v % 400) / 100);
+    return `${cap(TIERS[tier]).slice(0, 4)} ${DIVS[div]}`;
+  }
+  function renderLpTrend() {
+    const hist = (DATA.lpHistory || []).filter((r) => TIERS.includes(r.tier));
+    const vals = hist.map(ladder);
+    let ticks = [], yMin = 0, yMax = 1;
+    if (vals.length) {
+      const step = Math.max(...vals) - Math.min(...vals) > 600 ? 400 : 100;
+      yMin = Math.floor((Math.min(...vals) - 20) / step) * step;
+      yMax = Math.ceil((Math.max(...vals) + 20) / step) * step;
+      for (let t = yMin; t <= yMax; t += step) ticks.push(t);
+    }
+    const points = hist.map((r, i) => ({ y: vals[i], x: new Date(r.date).getTime(),
+      title: new Date(r.date).toLocaleDateString('it-IT', { dateStyle: 'medium' }),
+      rows: [[`${cap(r.tier)} ${TIERS.indexOf(r.tier) >= 7 ? '' : r.rank}`.trim(), `${r.lp} LP`], [`${r.wins}V ${r.losses}S`, 'stagione']] }));
+    lineChart($('lp-trend'), [{ name: 'LP', color: 'var(--s1)', points }], {
+      yMin, yMax, ticks, yFmt: ladderLabel, endFmt: (v) => `${hist.length ? hist[hist.length - 1].lp : ''} LP`, left: 58,
+      empty: hist.length ? 'Primo snapshot salvato: il grafico compare dal secondo giorno di aggiornamenti.' : 'Nessun dato di rank ancora disponibile.',
+      aria: 'Andamento LP giornaliero',
+    });
+    $('lp-details').hidden = !hist.length;
+    $('lp-table').replaceChildren(table(['Data', 'Rank', 'LP', 'Vittorie', 'Sconfitte'],
+      hist.slice().reverse().map((r) => ({ cells: [new Date(r.date).toLocaleDateString('it-IT'), `${cap(r.tier)} ${TIERS.indexOf(r.tier) >= 7 ? '' : r.rank}`, String(r.lp), String(r.wins), String(r.losses)] }))));
+  }
+
+  // ---------------------------------------------------------------- abilita': definizioni
+  // Stesse formule di lol_metrics.py: il confronto con i riferimenti e' corretto solo se coincidono.
+  const AXES = [
+    { key: 'kda', biased: true, axis: 'Combattimento', label: 'KDA per partita', fn: (g) => (g.k + g.a) / Math.max(1, g.d), f: (v) => fmt(v, 2),
+      formula: '(Uccisioni + Assist) ÷ max(1, Morti), calcolato per ogni partita', fields: 'kills, deaths, assists',
+      meaning: 'Quanto contribuisci agli scontri rispetto a quanto spesso muori. È diverso dal KDA del riquadro in alto, che somma tutte le partite prima di dividere: qui ogni partita pesa allo stesso modo.',
+      tip: 'Si alza soprattutto morendo meno: entra negli scontri quando la tua squadra è in vantaggio numerico.' },
+    { key: 'dpm', axis: 'Aggressività', label: 'Danni ai campioni/min', fn: (g) => g.dmg / g.dur, f: (v) => fmt(v, 0),
+      formula: 'Danni totali inflitti ai campioni nemici ÷ durata in minuti', fields: 'totalDamageDealtToChampions',
+      meaning: 'La pressione che metti sugli avversari: danni fisici, magici e puri (scudi e cure esclusi). Dividere per i minuti rende confrontabili partite corte e lunghe.',
+      tip: 'Cerca più scambi favorevoli in lane e, nei teamfight, resta in una posizione da cui puoi colpire senza essere raggiunto.' },
+    { key: 'kp', biased: true, axis: 'Teamplay', label: 'Kill participation', fn: (g) => g.kp, f: (v) => pct(v, 0),
+      formula: '(Uccisioni + Assist) ÷ uccisioni totali della tua squadra', fields: 'kills, assists (tuoi e dei compagni)',
+      meaning: 'Quanto sei presente dove la squadra combatte. Un valore basso spesso significa farmare da soli mentre il resto del team gioca 4 contro 5.',
+      tip: 'Segui i timer di draghi, Voidgrubs e Barone e raggiungi la squadra prima che l\'obiettivo compaia.' },
+    { key: 'csm', axis: 'Farm', label: 'CS al minuto', fn: (g) => g.cs / g.dur, f: (v) => fmt(v, 2),
+      formula: '(Minion + mostri neutrali uccisi) ÷ durata in minuti', fields: 'totalMinionsKilled, neutralMinionsKilled',
+      meaning: 'La fonte di oro più costante e controllabile. Per i support è naturalmente bassa: per questo il confronto avviene sempre con lo stesso ruolo.',
+      tip: 'Tra un\'azione e l\'altra torna su una lane libera o su un campo della giungla: ogni ondata lasciata morire è oro regalato.' },
+    { key: 'cs10', axis: 'Early game', label: 'CS a 10 minuti', fn: (g) => g.cs10, f: (v) => fmt(v, 0),
+      formula: 'Minion di lane + mostri della giungla uccisi nei primi 10 minuti', fields: 'challenges.laneMinionsFirst10Minutes, challenges.jungleCsBefore10Minutes',
+      meaning: 'Misura la fase di lane, prima che la partita si apra e i ruoli si mescolino. È tra i parametri meno influenzati dall\'andamento della partita, quindi riflette bene la tua abilità.',
+      tip: 'Allenati sull\'ultimo colpo ai minion sotto torre: è il momento in cui se ne perdono di più.' },
+    { key: 'deaths10', axis: 'Sopravvivenza', label: 'Morti ogni 10 min', fn: (g) => g.d / (g.dur / 10), f: (v) => fmt(v, 2), invert: true,
+      formula: 'Morti ÷ (durata in minuti ÷ 10). Il punteggio è invertito: meno morti = punteggio più alto', fields: 'deaths',
+      meaning: 'Ogni morte regala oro, esperienza e tempo agli avversari. Normalizzare per la durata evita di penalizzare le partite lunghe.',
+      tip: 'Prima di spingere una lane controlla quanti nemici mancano dalla mappa; senza visione, gioca più vicino alla tua torre.' },
+    { key: 'vspm', axis: 'Visione', label: 'Vision score/min', fn: (g) => g.vis / g.dur, f: (v) => fmt(v, 2),
+      formula: 'Vision score ÷ durata in minuti', fields: 'visionScore',
+      meaning: 'Il vision score di Riot premia le ward piazzate, quelle nemiche distrutte e il tempo in cui le tue ward danno visione utile.',
+      tip: 'Compra una control ward a ogni ritorno in base e usa il trinket appena è carico.' },
+    { key: 'objm', biased: true, axis: 'Obiettivi', label: 'Danni a obiettivi/min', fn: (g) => g.objDmg / g.dur, f: (v) => fmt(v, 0),
+      formula: 'Danni a torri, inibitori, draghi, Barone, Araldo e Voidgrubs ÷ durata in minuti', fields: 'damageDealtToObjectives',
+      meaning: 'Quanto trasformi i vantaggi in obiettivi concreti. Per i jungler pesano molto i mostri epici, per i laner soprattutto le torri.',
+      tip: 'Dopo una kill o un\'ondata spinta colpisci la torre invece di tornare subito in base.' },
+  ];
+  const ROLLING = 10;
+  const MIN_GAMES = 5;
+  const BENCH_ORDER = ['lobby', 'IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER'];
+  let BENCH = {};   // impostato da prepareAccount
+  const benchOptions = () => BENCH_ORDER.filter((k) => BENCH[k] && Object.keys(BENCH[k].roles || {}).length)
+    .map((k) => [k, k === 'lobby' ? 'La tua lobby (MMR simile)' : BENCH[k].label]);
+  function defaultBench() {
+    const tier = DATA.rank && DATA.rank.tier;
+    const key = TIERS.indexOf(tier) >= 7 ? 'MASTER' : tier;
+    return BENCH[key] ? key : 'lobby';
+  }
+  const benchRoles = () => (BENCH[filters.bench] || {}).roles || {};
+  const benchName = () => (filters.bench === 'lobby' ? 'la tua lobby' : (BENCH[filters.bench] || {}).label || 'riferimento');
+
+  // Percentile di v in una distribuzione descritta dai suoi quantili ogni 5% (interpolazione lineare)
+  function percentileOf(v, q) {
+    const n = q.length - 1, step = 100 / n;
+    if (v < q[0]) return 0;
+    if (v > q[n]) return 100;
+    let first = -1, last = -1;
+    for (let i = 0; i <= n; i++) if (q[i] === v) { if (first < 0) first = i; last = i; }
+    if (first >= 0) return ((first + last) / 2) * step;   // valori ripetuti: centro dell'intervallo
+    let i = 0;
+    while (q[i + 1] < v) i++;
+    return (i + (v - q[i]) / (q[i + 1] - q[i])) * step;
+  }
+
+  // Punteggi 0-100 di ogni partita rispetto al riferimento scelto, per il ruolo giocato in quella partita
+  function scoreGames() {
+    const roles = benchRoles();
+    for (const g of games) {
+      g.scores = {};
+      const values = [];
+      for (const a of AXES) {
+        const stats = roles[g.role] && roles[g.role][a.key];
+        const v = a.fn(g);
+        const p = stats && v != null ? percentileOf(v, stats.q) : null;
+        g.scores[a.key] = p == null ? null : a.invert ? 100 - p : p;
+        if (p != null) values.push(g.scores[a.key]);
+      }
+      g.score = values.length >= 6 ? avg(values) : null;
+    }
+  }
+  function axisSummary(gs, a) {
+    const roles = benchRoles();
+    const sg = gs.filter((g) => g.scores[a.key] != null);
+    return { score: avg(sg.map((g) => g.scores[a.key])), you: avg(sg.map(a.fn)),
+      ref: avg(sg.map((g) => roles[g.role][a.key].mean)), n: sg.length };
+  }
+  // Win rate nelle partite migliori vs peggiori della tua mediana (escluse quelle uguali alla mediana)
+  function winImpact(gs, k) {
+    const vals = gs.map((g) => [g, k.fn(g)]).filter(([, v]) => v != null);
+    if (vals.length < 10) return null;
+    const med = median(vals.map(([, v]) => v));
+    const better = vals.filter(([, v]) => (k.invert ? v < med : v > med)).map(([g]) => g);
+    const worse = vals.filter(([, v]) => (k.invert ? v > med : v < med)).map(([g]) => g);
+    if (better.length < MIN_GAMES || worse.length < MIN_GAMES) return null;
+    return { med, better, worse, gap: winRate(better) - winRate(worse) };
+  }
+  const IMPACT_KPIS = [
+    { label: 'Punteggio partita', fn: (g) => g.score, f: (v) => fmt(v, 0) },
+    ...AXES,
+    { label: 'CS a 10 min vs avversario', fn: (g) => g.cs10Diff, f: (v) => signed(v, 0) },
+    { label: 'Gold/min', fn: (g) => g.gold / g.dur, f: (v) => fmt(v, 0), biased: true },
+    { label: 'Quota danni del team', fn: (g) => g.dmgShare, f: (v) => pct(v, 0) },
+  ];
+
+  // ---------------------------------------------------------------- abilita': radar
+  let radarMode = 'all';
+  function radarGroups(gs) {
+    const groups = radarMode === 'queue'
+      ? [['Solo Queue', gs.filter((g) => g.queue === 'Solo'), 'var(--s1)'], ['Duo Queue', gs.filter((g) => g.queue === 'Duo'), 'var(--s2)']]
+      : radarMode === 'recent'
+        ? [['Ultime 20', gs.slice(-20), 'var(--s1)'], ['20 precedenti', gs.slice(-40, -20), 'var(--s2)']]
+        : [['Tu', gs, 'var(--s1)']];
+    return groups.filter(([, g]) => g.length >= MIN_GAMES)
+      .map(([name, g, color]) => ({ name, color, games: g, sums: AXES.map((a) => axisSummary(g, a)) }));
+  }
+  // Icone (24x24, solo tratto) per gli assi del radar
+  const ICONS = {
+    kda: 'M4 4l11 11M20 4L9 15M12 17.5l5.5-5.5M6.5 12l5.5 5.5M16 16l4 4M8 16l-4 4',
+    dpm: 'M12 3c.5 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2.6 1.5-4 2.5-5.5.3 1.6 1 2.6 2 3 .8-2.3.5-5.3.5-8z',
+    kp: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3.5 20c.4-3.2 2.7-5 5.5-5s5.1 1.8 5.5 5M16 5.5a3 3 0 0 1 0 5.6M18 15c1.6.6 2.6 2.2 2.8 4.5',
+    csm: 'M5 6.5C5 5.1 8.1 4 12 4s7 1.1 7 2.5S15.9 9 12 9 5 7.9 5 6.5zM5 6.5v5C5 12.9 8.1 14 12 14s7-1.1 7-2.5v-5M5 11.5v5C5 17.9 8.1 19 12 19s7-1.1 7-2.5v-5',
+    cs10: 'M6 3h12M6 21h12M8 3v3c0 3 4 4 4 6s-4 3-4 6v3M16 3v3c0 3-4 4-4 6s4 3 4 6v3',
+    deaths10: 'M12 3l7 3v5.5c0 4.6-3 8-7 9.5-4-1.5-7-4.9-7-9.5V6l7-3zM9 12l2 2 4-4',
+    vspm: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+    objm: 'M6 21h12M8 21v-9h8v9M7 12V5h2.5v2h1.5V5h2v2h1.5V5H17v7M11 21v-3h2v3',
+    pingTotal: 'M12 12h.01M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8',
+    pingWarn: 'M12 4l9 16H3l9-16zM12 10v4M12 17h.01',
+    pingHelp: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6',
+    pingCoord: 'M5 21V4M5 4h11l-2 4 2 4H5',
+    pingVision: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  };
+  function icon(key, attrs = {}) {
+    const s = svg('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', ...attrs });
+    s.append(svg('path', { d: ICONS[key] }));
+    return s;
+  }
+  // Verde-acqua se il valore e' migliore del riferimento, rosa se peggiore (per le morti vale il contrario)
+  const verdict = (a, you, ref) => (a.neutral || you == null || ref == null ? '' : (a.invert ? you < ref : you > ref) ? 'good' : 'bad');
+
+  function radarChart(host, series, focusKey) {
+    host.replaceChildren(legend(series, `${benchName()} = 50`));
+    const size = Math.min(520, Math.max(300, host.clientWidth)), c = size / 2, R = c - 92, n = AXES.length;
+    const ang = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
+    const pt = (i, v, extra = 0) => [c + Math.cos(ang(i)) * (R * (v / 100) + extra), c + Math.sin(ang(i)) * (R * (v / 100) + extra)];
+    const poly = (vals) => vals.map((v, i) => pt(i, v ?? 0).map((x) => x.toFixed(1)).join(',')).join(' ');
+    const s = svg('svg', { width: size, height: size, viewBox: `0 0 ${size} ${size}`, role: 'img', 'aria-label': 'Radar delle abilità' });
+    s.style.setProperty('--c', `${c}px`);
+    // fasce concentriche alternate, dall'esterno verso l'interno
+    [100, 80, 60, 40, 20].forEach((r, k) => s.append(svg('polygon', { class: k % 2 ? 'band-2' : 'band-1', points: poly(AXES.map(() => r)) })));
+    AXES.forEach((_, i) => { const [x, y] = pt(i, 100); s.append(svg('line', { class: 'spoke', x1: c, y1: c, x2: x, y2: y })); });
+    s.append(svg('polygon', { class: 'refring shape', points: poly(AXES.map(() => 50)) }));
+    series.forEach((sr, k) => {
+      const shape = svg('polygon', { class: 'shape', points: poly(sr.sums.map((x) => x.score)),
+        style: `fill: ${sr.color}; fill-opacity: .16; stroke: ${sr.color}; stroke-width: 2.5; stroke-linejoin: round; filter: drop-shadow(0 0 8px ${sr.color}); animation-delay: ${0.15 + k * 0.12}s` });
+      s.append(shape);
+    });
+
+    AXES.forEach((a, i) => {
+      const [px, py] = pt(i, 100, 42);
+      const group = svg('g', { class: 'axis-group', tabindex: 0 });
+      const ic = icon(a.key, { x: px - 13, y: py - 30, width: 26, height: 26 });
+      ic.firstChild.setAttribute('class', 'axis-icon');
+      const name = svg('text', { class: 'axis-label', x: px, y: py + 10, 'text-anchor': 'middle' });
+      name.textContent = a.axis.toUpperCase();
+      const val = svg('text', { class: 'axis-score', x: px, y: py + 27, 'text-anchor': 'middle' });
+      val.textContent = series.map((sr) => (sr.sums[i].score == null ? 'n/d' : Math.round(sr.sums[i].score))).join(' · ');
+      group.append(ic, name, val);
+      if (a.key === focusKey) {   // segnale sull'abilita' da migliorare
+        group.append(svg('circle', { class: 'alert', cx: px + 18, cy: py - 26, r: 8 }));
+        const mark = svg('text', { x: px + 18, y: py - 22, 'text-anchor': 'middle', style: 'fill: #fff; font: 700 11px var(--display)' });
+        mark.textContent = '!';
+        group.append(mark);
+      }
+      // vertici con anello del colore della superficie + area di hover piu' grande del segno
+      for (const sr of series) {
+        const [x, y] = pt(i, sr.sums[i].score ?? 0);
+        group.append(svg('circle', { cx: x, cy: y, r: 4.5, style: `fill: ${sr.color}; stroke: var(--surface); stroke-width: 2` }),
+          svg('circle', { cx: x, cy: y, r: 12, fill: 'transparent' }));
+      }
+      const rows = series.map((sr) => [sr.sums[i].score == null ? 'n/d' : `${Math.round(sr.sums[i].score)}/100`,
+        `${sr.name}: ${sr.sums[i].you == null ? '–' : a.f(sr.sums[i].you)} (rif. ${sr.sums[i].ref == null ? '–' : a.f(sr.sums[i].ref)})`]);
+      group.addEventListener('pointermove', (e) => showTip(e.clientX, e.clientY, `${a.axis} · ${a.label}`, rows));
+      group.addEventListener('pointerleave', hideTip);
+      group.addEventListener('focus', () => { const r = group.getBoundingClientRect(); showTip(r.right, r.top, `${a.axis} · ${a.label}`, rows); });
+      group.addEventListener('blur', hideTip);
+      s.append(group);
+    });
+    host.append(s);
+  }
+
+  // "Tu X vs rif. Y" con barre a confronto, come nelle schede del pannello abilita'
+  function versus(a, entries, ref, big = true, headline) {
+    const max = Math.max(...entries.map((e) => e.you ?? 0), ref ?? 0) * 1.08 || 1;
+    const bar = (label, value, color) => {
+      const fill = el('div', { class: 'fill' });
+      fill.style.width = `${((value ?? 0) / max) * 100}%`;
+      fill.style.background = color;
+      return el('div', { class: 'vbar', title: `${label}: ${value == null ? '–' : a.f(value)}` }, el('span', { text: label }), el('div', { class: 'track' }, fill));
+    };
+    const first = headline === undefined ? entries[0] : { you: headline };
+    return el('div', { class: 'versus' },
+      el('div', { class: 'nums', style: big ? null : 'font-size:30px' },
+        el('span', { class: verdict(a, first.you, ref), text: first.you == null ? '–' : a.f(first.you) }),
+        el('small', { text: 'vs' }),
+        el('span', { class: 'ref-num', text: ref == null ? '–' : a.f(ref) })),
+      el('div', { class: 'vbars' }, ...entries.map((e) => bar(e.short, e.you, e.color)), bar('Rif.', ref, 'var(--ref)')));
+  }
+
+  function renderSkills(gs) {
+    document.querySelectorAll('#radar-mode button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === radarMode)));
+    const side = $('skills-side');
+    side.replaceChildren();
+    if (!Object.keys(benchRoles()).length) {
+      $('radar').replaceChildren(el('p', { class: 'empty', text: 'Nessun riferimento disponibile per il confronto.' }));
+      $('skills-sub').textContent = '';
+      return;
+    }
+    const series = radarGroups(gs);
+    $('skills-sub').textContent = `Confronto con ${benchName()}, ruolo per ruolo · ${gs.length} partite nel filtro`;
+    if (!series.length) {
+      $('radar').replaceChildren(el('p', { class: 'empty', text: radarMode === 'queue' ? 'Servono almeno 5 partite in Solo o in Duo nel filtro corrente.' : `Servono almeno ${MIN_GAMES} partite nel filtro corrente.` }));
+      return;
+    }
+
+    // Su cosa concentrarsi: asse piu' basso; a parita' (entro 5 punti) quello che incide di piu' sulle vittorie
+    const all = AXES.map((a) => ({ a, s: axisSummary(gs, a), imp: winImpact(gs, a) })).filter((x) => x.s.score != null);
+    let focus = null;
+    if (all.length) {
+      const min = Math.min(...all.map((x) => x.s.score));
+      focus = all.filter((x) => x.s.score <= min + 5).sort((p, q) => (q.imp ? q.imp.gap : -1) - (p.imp ? p.imp.gap : -1))[0];
+      const best = all.reduce((b, x) => (x.s.score > b.s.score ? x : b));
+      const body = el('div', { class: 'panel-body' },
+        el('div', { class: 'focus-title' }, icon(focus.a.key), document.createTextNode(focus.a.axis)),
+        versus(focus.a, [{ short: 'Tu', you: focus.s.you, color: 'var(--s1)' }], focus.s.ref),
+        el('p', {}, document.createTextNode(`${focus.a.label} · punteggio `), el('strong', { text: `${Math.round(focus.s.score)}/100` }),
+          document.createTextNode(`: in media fai meglio del ${Math.round(focus.s.score)}% delle prestazioni di riferimento nello stesso ruolo.`)));
+      if (focus.imp) {
+        body.append(el('p', { text: `Nelle tue partite, quando fai meglio della tua mediana (${focus.a.f(focus.imp.med)}) vinci il ${pct(winRate(focus.imp.better), 0)}, altrimenti il ${pct(winRate(focus.imp.worse), 0)}.`
+          + (focus.a.biased ? ' Parte di questa differenza dipende dal fatto che chi vince sale naturalmente in questo parametro.' : '') }));
+      }
+      body.append(el('p', {}, el('strong', { text: 'Come migliorare: ' }), document.createTextNode(focus.a.tip)),
+        el('p', {}, document.createTextNode('Punto di forza: '), el('strong', { text: `${best.a.axis} (${Math.round(best.s.score)}/100)` })));
+      side.append(el('div', { class: 'panel focus' },
+        el('div', { class: 'panel-head' }, el('span', { text: 'Abilità da migliorare' }), el('span', { class: 'vs-tag', text: `vs ${benchName()}` })),
+        body));
+    }
+    radarChart($('radar'), series, focus && focus.a.key);
+
+    const SHORT = { 'Tu': 'Tu', 'Solo Queue': 'Solo', 'Duo Queue': 'Duo', 'Ultime 20': 'Ult. 20', '20 precedenti': 'Prec.' };
+    side.append(el('div', { class: 'axes' }, ...AXES.map((a, i) => {
+      const entries = series.map((sr) => ({ short: SHORT[sr.name] || sr.name, you: sr.sums[i].you, color: sr.color }));
+      const ref = series[0].sums[i].ref;
+      const scores = series.map((sr) => (sr.sums[i].score == null ? 'n/d' : Math.round(sr.sums[i].score))).join(' · ');
+      return el('div', { class: 'panel' },
+        el('div', { class: 'panel-head' }, icon(a.key), el('span', { text: a.axis }), el('span', { class: 'score-tag', text: `${scores}/100` })),
+        el('div', { class: 'panel-body' },
+          versus(a, entries, ref, false),
+          el('div', { class: 'metric', text: series.length > 1
+            ? `${a.label} · ` + series.map((sr) => `${SHORT[sr.name]} ${sr.sums[i].you == null ? '–' : a.f(sr.sums[i].you)}`).join(' · ')
+            : a.label })));
+    })));
+  }
+
+  // ---------------------------------------------------------------- abilita': andamento nel tempo
+  // Valore mobile su `n` partite: ogni punto aggrega (media o mediana) le ultime n partite fino a quella data
+  function rolling(list, fn, n = ROLLING, agg = avg) {
+    const vals = list.map(fn), points = [];
+    for (let i = n - 1; i < list.length; i++) {
+      const w = vals.slice(i - n + 1, i + 1).filter((v) => v != null);
+      if (w.length >= Math.ceil(n / 2)) points.push({ x: list[i].ts, y: agg(w) });
+    }
+    return points;
+  }
+  // Linee separate per Solo e Duo quando entrambe hanno abbastanza partite, altrimenti una sola linea
+  function queueSeries(gs, fn, agg = avg) {
+    const solo = gs.filter((g) => g.queue === 'Solo'), duo = gs.filter((g) => g.queue === 'Duo');
+    if (solo.length >= ROLLING && duo.length >= ROLLING) {
+      return [{ name: 'Solo Queue', color: 'var(--s1)', points: rolling(solo, fn, ROLLING, agg) },
+        { name: 'Duo Queue', color: 'var(--s2)', points: rolling(duo, fn, ROLLING, agg) }];
+    }
+    return [{ name: 'Tutte le partite', color: 'var(--s1)', points: rolling(gs, fn, ROLLING, agg) }];
+  }
+  function renderScoreTrend(gs) {
+    lineChart($('score-trend'), queueSeries(gs, (g) => g.score), {
+      yMin: 0, yMax: 100, ticks: [0, 25, 50, 75, 100], ref: 50, refLabel: `${benchName()} = 50`, yFmt: (v) => fmt(v, 0),
+      endFmt: (v) => fmt(v, 0), empty: `Servono almeno ${ROLLING} partite nel filtro corrente.`, aria: 'Punteggio partita nel tempo',
+    });
+  }
+  function renderParamTrends(gs) {
+    const series0 = queueSeries(gs, AXES[0].fn);
+    $('trends-sub').textContent = `Media mobile sulle ultime ${ROLLING} partite${series0.length > 1 ? ' di ogni coda' : ''}. `
+      + `La linea rosa è la media di ${benchName()} per i ruoli che hai giocato nel filtro.`;
+    $('trends-legend').replaceChildren(legend(series0.length > 1 ? series0 : [], `media ${benchName()}`));
+    $('trends').replaceChildren(...AXES.map((a) => {
+      const host = el('div', { class: 'chart' });
+      const wrap = el('div', {}, el('h3', {}, icon(a.key), document.createTextNode(a.axis)), el('div', { class: 'metric', text: a.label }), host);
+      return { wrap, host, a };
+    }).map(({ wrap, host, a }) => {
+      // il grafico misura la larghezza del contenitore: va disegnato dopo l'inserimento nel DOM
+      requestAnimationFrame(() => {
+        const series = queueSeries(gs, a.fn);
+        const ref = axisSummary(gs, a).ref;
+        const ys = series.flatMap((sr) => sr.points.map((p) => p.y)).concat(ref == null ? [] : [ref]);
+        const nt = ys.length ? niceTicks(Math.min(...ys), Math.max(...ys)) : { ticks: [0, 1], min: 0, max: 1 };
+        lineChart(host, series, { yMin: nt.min, yMax: nt.max, ticks: nt.ticks, ref, refLabel: `media ${benchName()}`, yFmt: a.f,
+          height: 160, left: 46, legend: false, empty: `Servono almeno ${ROLLING} partite.`, aria: `${a.label} nel tempo` });
+      });
+      return wrap;
+    }));
+  }
+
+  function renderImpact(gs) {
+    const rows = IMPACT_KPIS.map((k) => ({ k, imp: winImpact(gs, k) })).filter((x) => x.imp).sort((p, q) => q.imp.gap - p.imp.gap);
+    const host = $('impact');
+    if (!rows.length) { host.replaceChildren(el('p', { class: 'empty', text: 'Servono almeno 10 partite nel filtro corrente.' })); return; }
+    host.replaceChildren(table(['Parametro', 'Tua mediana', 'WR se meglio', 'WR se peggio', 'Differenza'],
+      rows.map(({ k, imp }) => ({ cells: [k.label + (k.biased ? ' *' : ''), k.f(imp.med), `${pct(winRate(imp.better), 0)} (${imp.better.length})`,
+        `${pct(winRate(imp.worse), 0)} (${imp.worse.length})`, delta(imp.gap, 1, `${fmt(Math.abs(imp.gap) * 100, 0)} pt`)] }))),
+      el('p', { class: 'sub', style: 'margin:8px 0 0', text: '* Sale anche per effetto della vittoria (chi vince fa più kill, oro e danni alle torri): la differenza è in parte una conseguenza, non solo una causa. Il punteggio partita include alcuni di questi parametri.' }));
+  }
+
+  // ---------------------------------------------------------------- avversario di corsia
+  // Avversario = il nemico con il tuo stesso ruolo. g.lane (da lol_dashboard.lane_opponent): 1 = corsia vinta,
+  // -1 = persa, 0 = equilibrata, null = dato mancante. Un giocatore medio ha tante corsie vinte quante perse.
+  const MIN_MATCHUP_GAMES = 4;   // per citare un matchup tra i piu' facili / difficili
+  function renderLane(gs) {
+    const withOpp = gs.filter((g) => g.oppChamp);
+    const laned = withOpp.filter((g) => g.lane != null);
+    const won = laned.filter((g) => g.lane === 1), even = laned.filter((g) => g.lane === 0), lost = laned.filter((g) => g.lane === -1);
+    const cs10 = withOpp.filter((g) => g.cs10Diff != null);
+    const mean = (key) => avg(withOpp.filter((g) => g[key] != null).map((g) => g[key]));
+    $('lane-sub').textContent = `Il tuo avversario diretto è il nemico nel tuo stesso ruolo (per Jungle e Support: il jungler o il support nemico). ${withOpp.length} partite nel filtro.`;
+
+    barList($('lane-outcome'), [{ label: 'Vinta', games: won }, { label: 'Pari', games: even }, { label: 'Persa', games: lost }],
+      'Dati sulla fase di corsia non disponibili nel filtro corrente.');
+    const colored = (v, d) => el('span', { class: v > 0 ? 'good' : v < 0 ? 'bad' : '', text: signed(v, d) });
+    const stats = [
+      ['CS a 10 min vs avversario', colored(avg(cs10.map((g) => g.cs10Diff)), 1)],
+      ['Partite con più CS a 10 min', pct(share(cs10, (g) => g.cs10Diff > 0), 0)],
+      ['Massimo vantaggio CS (media)', fmt(mean('csLead'), 0)],
+      ['Massimo svantaggio CS (media)', fmt(mean('csDeficit'), 0)],
+      ['Max vantaggio livelli (tu / avv.)', `${fmt(mean('lvlLead'), 1)} / ${fmt(mean('lvlDeficit'), 1)}`],
+      ['Vision score vs avversario *', colored(mean('visDiff'), 1)],
+      ['Oro vs avversario *', colored(mean('goldDiff'), 0)],
+      ['Danni ai campioni vs avversario *', colored(mean('dmgDiff'), 0)],
+    ];
+    $('lane-stats').replaceChildren(...stats.map(([l, v]) => el('div', { class: 'stat' }, el('span', { text: l }),
+      withOpp.length ? (v instanceof Node ? v : el('span', { text: v })) : el('span', { text: '–' }))));
+
+    // Matchup: campioni avversari incontrati almeno 2 volte
+    const byOpp = new Map();
+    for (const g of withOpp) byOpp.set(g.oppChamp, [...(byOpp.get(g.oppChamp) || []), g]);
+    const matchups = [...byOpp].filter(([, og]) => og.length >= 2).sort((a, b) => b[1].length - a[1].length || winRate(a[1]) - winRate(b[1]));
+    const host = $('lane-matchups');
+    if (!matchups.length) host.replaceChildren(el('p', { class: 'empty', text: 'Nessun campione avversario incontrato almeno 2 volte nel filtro corrente.' }));
+    else {
+      host.replaceChildren(table(['Avversario', 'Partite', 'Win rate', 'Corsia vinta / persa', 'CS a 10 min', 'Oro *'], matchups.map(([champ, og]) => {
+        const l = og.filter((g) => g.lane != null), c = og.filter((g) => g.cs10Diff != null);
+        return { cells: [champIcon(champ), String(og.length), pct(winRate(og), 0),
+          l.length ? `${pct(share(l, (g) => g.lane === 1), 0)} / ${pct(share(l, (g) => g.lane === -1), 0)}` : '–',
+          signed(avg(c.map((g) => g.cs10Diff)), 1), signed(avg(og.map((g) => g.goldDiff)), 0)] };
+      })));
+    }
+
+    const insights = [];
+    if (laned.length >= 10) {
+      const wonShare = won.length / laned.length, lostShare = lost.length / laned.length;
+      insights.push(`Chiudi la fase di corsia in netto vantaggio nel ${pct(wonShare, 0)} delle partite e in netto svantaggio nel ${pct(lostShare, 0)}`
+        + (Math.abs(wonShare - lostShare) < 0.03 ? ': in linea con il tuo avversario medio.' : wonShare > lostShare ? ': di solito vinci la corsia.' : ': di solito perdi la corsia.'));
+      if (won.length >= MIN_GAMES && lost.length >= MIN_GAMES) {
+        insights.push(`Quando vinci la corsia vinci il ${pct(winRate(won), 0)} delle partite, quando la perdi il ${pct(winRate(lost), 0)}`
+          + (even.length >= MIN_GAMES ? ` (corsia pari: ${pct(winRate(even), 0)}).` : '.'));
+      }
+    }
+    if (cs10.length >= 10) {
+      const d = avg(cs10.map((g) => g.cs10Diff));
+      insights.push(Math.abs(d) < 0.5 ? 'A 10 minuti hai in media gli stessi CS del tuo avversario.'
+        : `A 10 minuti hai in media ${fmt(Math.abs(d), 1)} CS ${d > 0 ? 'in più' : 'in meno'} del tuo avversario.`);
+    }
+    const solid = matchups.filter(([, og]) => og.length >= MIN_MATCHUP_GAMES).sort((a, b) => winRate(a[1]) - winRate(b[1]));
+    if (solid.length >= 2) {
+      const [hard, easy] = [solid[0], solid[solid.length - 1]];
+      const record = ([, og]) => `${og.filter((g) => g.win).length} vittorie su ${og.length}`;
+      insights.push(`Matchup più difficile: ${hard[0]} (${record(hard)}). Più favorevole: ${easy[0]} (${record(easy)}).`);
+    }
+    $('lane-insights').replaceChildren(...insights.map((t) => el('div', { class: 'insight', text: t })));
+    $('lane-insights').hidden = !insights.length;
+  }
+
+  // ---------------------------------------------------------------- comunicazione (ping)
+  // Categorie identiche a PING_GROUPS in lol_metrics.py
+  const PING_INFO = {
+    enemyMissingPings: ['Nemico scomparso', 'pingWarn'], getBackPings: ['Torna indietro', 'pingWarn'],
+    retreatPings: ['Ritirata', 'pingWarn'], dangerPings: ['Pericolo', 'pingWarn'],
+    assistMePings: ['Aiutami', 'pingHelp'],
+    onMyWayPings: ['Sto arrivando', 'pingCoord'], allInPings: ['All-in', 'pingCoord'], pushPings: ['Spingi', 'pingCoord'],
+    holdPings: ['Aspetta', 'pingCoord'], commandPings: ['Ping di comando', 'pingCoord'], basicPings: ['Ping base', 'pingCoord'],
+    enemyVisionPings: ['Il nemico ha visione', 'pingVision'], needVisionPings: ['Serve visione', 'pingVision'], visionClearedPings: ['Visione ripulita', 'pingVision'],
+  };
+  const PING_GROUPS = [
+    { key: 'pingTotal', axis: 'Ping totali', label: 'Tutti i 14 tipi di ping, a partita' },
+    { key: 'pingWarn', axis: 'Avvisi di pericolo', label: 'Nemico scomparso, torna indietro, ritirata, pericolo' },
+    { key: 'pingHelp', axis: 'Richieste di aiuto', label: 'Aiutami' },
+    { key: 'pingCoord', axis: 'Coordinamento', label: 'Sto arrivando, all-in, spingi, aspetta, comando, base' },
+    { key: 'pingVision', axis: 'Visione', label: 'Il nemico ha visione, serve visione, visione ripulita' },
+  ].map((pg) => ({ ...pg, fn: (g) => g[pg.key], f: (v) => fmt(v, 1), neutral: true }));
+  const PING_GROUP_LABEL = Object.fromEntries(PING_GROUPS.map((pg) => [pg.key, pg.axis]));
+
+  // Ping: si usano le mediane (la "partita tipica"), perche' i conteggi includono lo spam e Riot non dice
+  // quando sono stati fatti; poche partite con raffiche di ping alzerebbero molto le medie.
+  // Il tuo valore usa tutte le partite; riferimento e percentile solo quelle con un riferimento per il ruolo.
+  // Il riferimento e' la mediana del ruolo di ogni tua partita, mediata sulle tue partite.
+  function pingSummary(gs, pg) {
+    const roles = benchRoles();
+    const sg = gs.filter((g) => g[pg.key] != null && roles[g.role] && roles[g.role][pg.key]);
+    const QMID = (q) => q[(q.length - 1) / 2];
+    return { n: sg.length, you: median(gs.filter((g) => g[pg.key] != null).map(pg.fn)), ref: avg(sg.map((g) => QMID(roles[g.role][pg.key].q))),
+      score: avg(sg.map((g) => percentileOf(g[pg.key], roles[g.role][pg.key].q))) };
+  }
+  function pingTypeRef(gs, type) {
+    const roles = benchRoles();
+    const sg = gs.filter((g) => roles[g.role] && roles[g.role][type]);
+    return sg.length ? avg(sg.map((g) => roles[g.role][type].median ?? roles[g.role][type].mean)) : null;
+  }
+
+  function renderComm(gs) {
+    const pg = gs.filter((g) => g.pings);
+    const solo = pg.filter((g) => g.queue === 'Solo'), duo = pg.filter((g) => g.queue === 'Duo');
+    const split = solo.length >= MIN_GAMES && duo.length >= MIN_GAMES;
+    const hasRef = Object.values(benchRoles()).some((r) => r.pingTotal);
+    $('comm-sub').textContent = 'Riot registra quante volte usi ogni ping in una partita (anche lo spam), non quando né dove: '
+      + 'per questo i valori sono mediane, cioè la partita tipica. '
+      + `${pg.length} partite con dati di ping · ` + (hasRef ? `confronto con ${benchName()} nello stesso ruolo.`
+        : `${benchName()} non ha ancora dati sui ping: rigenera i riferimenti con build_benchmarks.py o scegli "La tua lobby".`);
+    if (pg.length < MIN_GAMES) {
+      ['comm-insights', 'comm-groups', 'comm-table', 'comm-trend', 'comm-impact'].forEach((id) => $(id).replaceChildren());
+      $('comm-groups').append(el('p', { class: 'empty', text: `Servono almeno ${MIN_GAMES} partite con dati di ping nel filtro corrente.` }));
+      return;
+    }
+
+    // Frasi chiave calcolate dai dati
+    const insights = [];
+    const total = pingSummary(pg, PING_GROUPS[0]);
+    if (total.score != null) {
+      insights.push(`Nella partita tipica usi ${fmt(total.you, 1)} ping: più del ${Math.round(total.score)}% dei giocatori di ${benchName()} nello stesso ruolo (mediana ${fmt(total.ref, 1)}).`);
+    }
+    if (split) {
+      const s = median(solo.map((g) => g.pingTotal)), d = median(duo.map((g) => g.pingTotal));
+      const change = s ? (d - s) / s : 0;
+      insights.push(`Nella partita tipica usi ${fmt(d, 1)} ping in Duo e ${fmt(s, 1)} in Solo (${change < 0 ? '−' : '+'}${pct(Math.abs(change), 0)} in Duo).`
+        + (change < -0.1 ? ' Probabilmente in Duo comunicate a voce.' : ''));
+    }
+    const types = Object.keys(PING_INFO).map((t) => ({ t, you: median(pg.map((g) => g.pings[t])), ref: pingTypeRef(pg, t) }))
+      .filter((x) => x.ref != null && Math.max(x.ref, x.you) >= 0.5);
+    if (types.length) {
+      // differenza assoluta in ping a partita: evita di premiare ping rarissimi (0 contro 0,5)
+      const top = types.reduce((b, x) => (Math.abs(x.you - x.ref) > Math.abs(b.you - b.ref) ? x : b));
+      const ratio = top.ref ? top.you / top.ref : null;
+      insights.push(`Il ping che ti distingue di più è "${PING_INFO[top.t][0]}": ${fmt(top.you, 1)} nella partita tipica contro ${fmt(top.ref, 1)} di ${benchName()}`
+        + (ratio == null ? '.' : ratio === 0 ? ': nella maggior parte delle partite non lo usi.' : ratio >= 1 ? ` (${fmt(ratio, 1)} volte tanto).` : ` (${pct(1 - ratio, 0)} in meno).`));
+    }
+    const warn = winImpact(pg, PING_GROUPS[1]);
+    if (warn) {
+      insights.push(`Quando segnali più pericoli della tua mediana (${fmt(warn.med, 0)} a partita) vinci il ${pct(winRate(warn.better), 0)}, altrimenti il ${pct(winRate(warn.worse), 0)}.`);
+    }
+    $('comm-insights').replaceChildren(...insights.map((t) => el('div', { class: 'insight', text: t })));
+
+    // Schede per categoria
+    $('comm-groups').replaceChildren(...PING_GROUPS.map((g) => {
+      const sum = pingSummary(pg, g);
+      const entries = split
+        ? [{ short: 'Solo', you: median(solo.map(g.fn)), color: 'var(--s1)' }, { short: 'Duo', you: median(duo.map(g.fn)), color: 'var(--s2)' }]
+        : [{ short: 'Tu', you: sum.you, color: 'var(--s1)' }];
+      return el('div', { class: 'panel' },
+        el('div', { class: 'panel-head' }, icon(g.key), el('span', { text: g.axis }),
+          el('span', { class: 'score-tag', text: sum.score == null ? '' : `> ${Math.round(sum.score)}%` })),
+        el('div', { class: 'panel-body' }, versus(g, entries, sum.ref, false, sum.you), el('div', { class: 'metric', text: g.label })));
+    }));
+
+    // Dettaglio per tipo di ping
+    const rows = Object.entries(PING_INFO).map(([t, [label, group]]) => ({
+      label, group, you: median(pg.map((g) => g.pings[t])), ref: pingTypeRef(pg, t),
+      solo: solo.length ? median(solo.map((g) => g.pings[t])) : null, duo: duo.length ? median(duo.map((g) => g.pings[t])) : null,
+      // a parita' di mediana (spesso 0) ordina per quante partite usi quel ping
+      used: pg.filter((g) => g.pings[t] > 0).length,
+    })).sort((a, b) => b.you - a.you || b.used - a.used);
+    const n1 = (v) => (v == null ? '–' : fmt(v, 1));
+    $('comm-table').replaceChildren(table(['Ping (mediana)', 'Categoria', 'Tu', 'Solo', 'Duo', benchName(), 'Differenza'],
+      rows.map((r) => ({ cells: [r.label, PING_GROUP_LABEL[r.group], n1(r.you), n1(r.solo), n1(r.duo), n1(r.ref),
+        r.ref == null ? '–' : delta(r.you - r.ref, 0, fmt(Math.abs(r.you - r.ref), 1))] })), { leftCols: [1] }));
+
+    // Andamento nel tempo
+    const series = queueSeries(pg, (g) => g.pingTotal, median);
+    const ys = series.flatMap((sr) => sr.points.map((pt) => pt.y)).concat(total.ref == null ? [] : [total.ref]);
+    const nt = ys.length ? niceTicks(Math.min(0, ...ys), Math.max(...ys)) : { ticks: [0, 1], min: 0, max: 1 };
+    lineChart($('comm-trend'), series, { yMin: nt.min, yMax: nt.max, ticks: nt.ticks, ref: total.ref, refLabel: `mediana ${benchName()}`,
+      yFmt: (v) => fmt(v, 0), height: 200, empty: `Servono almeno ${ROLLING} partite.`, aria: 'Ping a partita nel tempo' });
+
+    // Legame con le vittorie
+    const impacts = PING_GROUPS.map((g) => ({ g, imp: winImpact(pg, g) })).filter((x) => x.imp);
+    $('comm-impact').replaceChildren(impacts.length
+      ? table(['Categoria', 'Tua mediana', 'WR con più ping', 'WR con meno ping', 'Differenza'],
+        impacts.map(({ g, imp }) => ({ cells: [g.axis, fmt(imp.med, 0), `${pct(winRate(imp.better), 0)} (${imp.better.length})`,
+          `${pct(winRate(imp.worse), 0)} (${imp.worse.length})`, delta(imp.gap, 1, `${fmt(Math.abs(imp.gap) * 100, 0)} pt`)] })))
+      : el('p', { class: 'empty', text: 'Servono almeno 10 partite con abbastanza variazione nei ping.' }),
+      el('p', { class: 'sub', style: 'margin:8px 0 0', text: 'Correlazione, non causa: per esempio si pinga "torna indietro" più spesso quando la partita va male.' }));
+  }
+
+  // ---------------------------------------------------------------- guida
+  function renderGuide() {
+    const section = (title, ...parts) => el('section', {}, el('h3', { text: title }), ...parts);
+    const p = (...parts) => el('p', {}, ...parts.map((x) => (typeof x === 'string' ? document.createTextNode(x) : x)));
+    const strong = (t) => el('strong', { text: t });
+    const code = (t) => el('code', { text: t });
+    const bench = BENCH[filters.bench] || {};
+    const roleSizes = Object.entries(bench.roles || {}).map(([r, st]) => `${roleLabel(r)} ${st.n}`).join(', ');
+    const tiers = BENCH_ORDER.filter((k) => k !== 'lobby' && BENCH[k]).map((k) => BENCH[k].label);
+
+    const intro = [
+      section('Il punteggio da 0 a 100',
+        p('Per ogni partita il tuo valore viene confrontato con quello dei giocatori di riferimento ', strong('nello stesso ruolo'),
+          ' di quella partita (le tue partite da Mid con i Mid del riferimento, quelle da Support con i Support, e così via).'),
+        p('Il punteggio è il ', strong('percentile'), ': 70 significa che in quella partita hai fatto meglio del 70% delle prestazioni di riferimento. ',
+          'Il punteggio di un asse è la media dei percentili di tutte le partite nel filtro: così ', strong('50 corrisponde esattamente al giocatore medio'),
+          ' del riferimento, anche se giochi più ruoli.'),
+        p('Accanto al punteggio trovi il valore reale (es. 6,4 CS/min) e la media del riferimento per gli stessi ruoli, così vedi anche di quanto sei sopra o sotto.')),
+      section('Con chi ti confronti',
+        p(strong('La tua lobby'), ': gli altri 9 giocatori di tutte le tue partite in archivio. Il matchmaking li sceglie con un MMR simile al tuo, quindi è il confronto più diretto con il tuo livello reale.'),
+        p(strong('Leghe'), tiers.length ? ` (${tiers.join(', ')})` : '', ': per ogni lega si prende un campione di giocatori dalla classifica ufficiale (divisione II; per Master+ la classifica Master) e alcune loro partite Ranked recenti; ogni partita conta tutti e 10 i partecipanti. ',
+          'Utile per capire cosa ti separa dalla lega successiva.'),
+        p(`Riferimento attuale: ${bench.label === 'La tua lobby' || filters.bench === 'lobby' ? 'la tua lobby' : bench.label || '–'} · ${bench.matches || 0} partite · prestazioni per ruolo: ${roleSizes || '–'}`
+          + (filters.bench !== 'lobby' && DATA.benchmarkDate ? ` · campione raccolto il ${new Date(DATA.benchmarkDate).toLocaleDateString('it-IT')}` : '') + '.')),
+      section('Punteggio partita e costanza',
+        p(strong('Punteggio partita'), ': la media degli 8 assi in quella singola partita (servono almeno 6 assi disponibili). È il modo più rapido per capire se hai giocato bene indipendentemente dal risultato.'),
+        p(strong('Costanza'), ': la deviazione standard dei punteggi partita. ±10 indica prestazioni regolari; ±20 o più indica partite molto alte alternate a partite molto basse.')),
+      section('Cosa incide sulle tue vittorie',
+        p('Per ogni parametro le tue partite vengono divise in due metà rispetto alla tua mediana (quelle esattamente sulla mediana sono escluse) e si confronta il win rate delle due metà. Più è grande la differenza, più quel parametro accompagna le tue vittorie.'),
+        p(strong('Attenzione'), ': è una correlazione, non una causa. Gold, kill participation e danni crescono anche perché si sta vincendo. ',
+          'I parametri più "puri", cioè meno influenzati dall\'esito, sono CS a 10 minuti, morti e visione.')),
+      section('Avversario di corsia',
+        p('È il giocatore nemico con il tuo stesso ruolo in quella partita (campo ', code('teamPosition'), '). Per Jungle e Support è il jungler o il support nemico.'),
+        p(strong('Corsia vinta / persa'), ': Riot segna chi chiude la fase di corsia (14 minuti) con almeno il 20% di oro ed esperienza in più del proprio avversario (challenge ',
+          code('laningPhaseGoldExpAdvantage'), '). Se non ci riesce nessuno dei due la corsia è "pari". La maggior parte delle corsie finisce pari: conta il confronto tra vinte e perse, che per un giocatore medio sono uguali.'),
+        p(strong('CS a 10 minuti vs avversario'), ': i tuoi CS a 10 minuti meno i suoi. È il dato più "puro" della fase di corsia, perché non dipende da come finisce la partita. ',
+          strong('Massimo vantaggio / svantaggio CS'), ': il distacco più grande raggiunto durante la partita a tuo favore e a favore dell\'avversario (', code('maxCsAdvantageOnLaneOpponent'), ').'),
+        p('Oro, danni e visione con l\'asterisco sono valori ', strong('a fine partita'), ': chi vince accumula più oro e danni, quindi sono in parte una conseguenza del risultato. ',
+          'I matchup con poche partite sono indicativi: con 4 partite basta una vittoria in più per spostare il win rate di 25 punti.')),
+      section('Comunicazione (ping)',
+        p('Per ogni partita Riot fornisce solo ', strong('quante volte'), ' ogni giocatore ha usato ciascuno dei 14 ping (campi ', code('enemyMissingPings'), ', ', code('assistMePings'), ', ...): non quando, dove o verso chi. La chat non è disponibile.'),
+        p('I ping sono raggruppati in 4 categorie: ', strong('avvisi di pericolo'), ' (nemico scomparso, torna indietro, ritirata, pericolo), ', strong('richieste di aiuto'), ' (aiutami), ',
+          strong('coordinamento'), ' (sto arrivando, all-in, spingi, aspetta, comando, base) e ', strong('visione'), ' (il nemico ha visione, serve visione, visione ripulita).'),
+        p(strong('Spam'), ': ogni ping inviato conta 1, quindi 10 ping di fila valgono 10, e Riot non registra quando vengono fatti (nemmeno nella timeline della partita), quindi non si possono raggruppare. ',
+          'Per questo tutti i valori della sezione sono ', strong('mediane'), ', cioè la partita tipica: metà delle partite sta sopra e metà sotto, e qualche partita con raffiche di ping non sposta il risultato. ',
+          'Il riferimento è la mediana dei giocatori dello stesso ruolo. Anche l\'andamento nel tempo usa la mediana delle ultime 10 partite.'),
+        p('"> 70%" significa che in media pinghi più del 70% dei giocatori di riferimento nello stesso ruolo. Più ping non vuol dire giocare meglio: ',
+          'segnalare i nemici scomparsi aiuta il team, mentre troppi ping di altro tipo possono essere solo rumore. Per questo i numeri non sono colorati come buoni o cattivi.')),
+      section('Su cosa concentrarti',
+        p('È l\'asse con il punteggio più basso. Se più assi sono vicini (entro 5 punti) viene scelto quello che, nelle tue partite, fa più differenza sulla vittoria.')),
+      section('Solo vs Duo e andamento nel tempo',
+        p('Il radar in modalità "Solo vs Duo" calcola gli stessi punteggi separatamente per le due code; "Ultime 20 vs precedenti" mostra se stai migliorando.'),
+        p('Le linee nel tempo sono medie mobili su 10 partite della stessa coda: ogni punto è la media delle ultime 10 partite Solo (o Duo) fino a quella data. ',
+          'Remake (sotto i 5 minuti) esclusi ovunque.')),
+    ];
+    const axes = AXES.map((a) => el('section', {}, el('h3', {}, icon(a.key), document.createTextNode(`${a.axis} — ${a.label}`)),
+      p(strong('Formula: '), a.formula, '.'),
+      p(strong('Dati Riot: '), code(a.fields)),
+      p(a.meaning),
+      p(strong('Come migliorare: '), a.tip)));
+    $('guide').replaceChildren(...intro, el('section', { class: 'wide' }, el('h3', { text: 'Gli 8 parametri del radar' })), ...axes);
+  }
+
+  // ---------------------------------------------------------------- barre win rate
+  function barList(host, rows, emptyText) {
+    host.replaceChildren();
+    const used = rows.filter((r) => r.games.length);
+    if (!used.length) { host.append(el('p', { class: 'empty', text: emptyText })); return; }
+    for (const r of used) {
+      const wr = winRate(r.games), w = r.games.filter((g) => g.win).length;
+      const fill = el('div', { class: 'bar-fill' });
+      fill.style.width = `${(wr * 100).toFixed(1)}%`;
+      const value = el('span', { class: 'bar-value' }, el('strong', { text: pct(wr, 0) }), document.createTextNode(` · ${r.games.length} g`));
+      const row = el('div', { class: 'bar-row' + (r.games.length < 3 ? ' low' : '') },
+        el('span', { class: 'bar-label', text: r.label }), el('div', { class: 'bar-track' }, fill, el('span', { class: 'bar-ref' })), value);
+      hoverable(row, r.label, [[pct(wr, 1), 'win rate'], [`${w}V ${r.games.length - w}S`, `${r.games.length} partite`],
+        [fmt(kda(r.games), 2), 'KDA'], [fmt(avg(r.games.map((g) => g.cs / g.dur)), 1), 'CS/min']]);
+      host.append(row);
+    }
+  }
+  function renderRoles(gs) {
+    barList($('roles'), ROLE_ORDER.map((r) => ({ label: roleLabel(r), games: gs.filter((g) => g.role === r) })), 'Nessuna partita.');
+  }
+  function renderDurations(gs) {
+    const buckets = [['< 25 min', 0, 25], ['25–30 min', 25, 30], ['30–35 min', 30, 35], ['> 35 min', 35, Infinity]];
+    barList($('durations'), buckets.map(([label, a, b]) => ({ label, games: gs.filter((g) => g.dur >= a && g.dur < b) })), 'Nessuna partita.');
+  }
+
+  // ---------------------------------------------------------------- heatmap
+  function renderHeatmap(gs) {
+    const host = $('heat');
+    host.replaceChildren(el('span'), ...BANDS.map((b) => el('span', { class: 'hdr', text: b })));
+    DAYS.forEach((day, d) => {
+      host.append(el('span', { class: 'day', text: day }));
+      BANDS.forEach((band, b) => {
+        const cell = gs.filter((g) => g.day === d && g.band === b);
+        if (!cell.length) { host.append(el('span', { class: 'cell none' })); return; }
+        const wr = winRate(cell);
+        const node = el('span', { class: 'cell' });
+        if (cell.length >= 3) {
+          // divergente: rosso sotto il 50%, blu sopra, grigio neutro al 50%; saturo a +-20 punti
+          const t = Math.min(1, Math.abs(wr - 0.5) / 0.2);
+          node.style.background = `color-mix(in oklab, ${wr >= 0.5 ? 'var(--div-pos)' : 'var(--div-neg)'} ${Math.round(t * 100)}%, var(--div-mid))`;
+          node.style.color = t > 0.55 ? '#ffffff' : 'var(--text)';
+          node.textContent = pct(wr, 0);
+        } else {
+          node.style.background = 'var(--div-mid)';
+          node.style.color = 'var(--muted)';
+          node.textContent = String(cell.length);
+        }
+        hoverable(node, `${day} ${band}`, [[pct(wr, 0), 'win rate'], [String(cell.length), cell.length === 1 ? 'partita' : 'partite']]);
+        host.append(node);
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- abitudini
+  function wrCell(gs) { return gs.length ? `${pct(winRate(gs), 0)} (${gs.length})` : '–'; }
+  function renderHabits(gs) {
+    const sessions = new Set(gs.map((g) => g.session)).size;
+    const rows = [
+      ['Dopo una vittoria', wrCell(gs.filter((g) => g.prevWin === true))],
+      ['Dopo una sconfitta', wrCell(gs.filter((g) => g.prevWin === false))],
+      ['Dopo 2+ sconfitte di fila', wrCell(gs.filter((g) => g.lossesBefore >= 2))],
+      ['1ª partita della sessione', wrCell(gs.filter((g) => g.sessionGame === 1))],
+      ['2ª–3ª partita della sessione', wrCell(gs.filter((g) => g.sessionGame >= 2 && g.sessionGame <= 3))],
+      ['4ª partita in poi', wrCell(gs.filter((g) => g.sessionGame >= 4))],
+      ['Lato blu', wrCell(gs.filter((g) => g.side === 'Blu'))],
+      ['Lato rosso', wrCell(gs.filter((g) => g.side === 'Rosso'))],
+      ['Partite per sessione', sessions ? fmt(gs.length / sessions, 1) : '–'],
+    ];
+    $('habits').replaceChildren(table(['Situazione', 'Win rate (partite)'], rows.map((r) => ({ cells: r }))));
+  }
+
+  function renderObjectives(gs) {
+    const items = [['Primo sangue (squadra)', 'teamFb'], ['Coinvolto nel first blood (tu)', 'fbMe'], ['Prima torre', 'firstTower'],
+      ['Primo drago', 'firstDragon'], ['Primi Voidgrubs', 'firstGrubs'], ['Primo Barone', 'firstBaron']];
+    $('objectives').replaceChildren(table(['Obiettivo', 'Ottenuto', 'Non ottenuto'],
+      items.map(([label, key]) => ({ cells: [label, wrCell(gs.filter((g) => g[key])), wrCell(gs.filter((g) => !g[key]))] }))));
+  }
+
+  function renderAdvanced(gs) {
+    const per = (fn, d = 1) => fmt(avg(gs.map(fn)), d);
+    const total = (key) => fmt(sum(gs.map((g) => g[key])), 0);
+    const cs10 = gs.filter((g) => g.cs10 != null);
+    const items = [
+      ['Gold/min', per((g) => g.gold / g.dur, 0)],
+      ['CS a 10 minuti', fmt(avg(cs10.map((g) => g.cs10)), 1)],
+      ['Solo kill', per((g) => g.soloKills, 2)],
+      ['Danni a obiettivi', per((g) => g.objDmg, 0)],
+      ['Torri distrutte', per((g) => g.turrets, 2)],
+      ['Wards piazzate', per((g) => g.wards, 1)],
+      ['Control ward piazzate', per((g) => g.ctrl, 1)],
+      ['Tempo da morto', pct(avg(gs.map((g) => g.dead / (g.dur * 60))), 1)],
+      ['Danni subiti/min', per((g) => g.taken / g.dur, 0)],
+      ['Double kill (totale)', total('dbl')],
+      ['Triple kill (totale)', total('tpl')],
+      ['Quadra / Penta (totale)', `${total('qdr')} / ${total('pnt')}`],
+    ];
+    $('advanced').replaceChildren(...items.map(([l, v]) => el('div', { class: 'stat' }, el('span', { text: l }), el('span', { text: gs.length ? v : '–' }))));
+  }
+
+  // ---------------------------------------------------------------- tabelle
+  function renderChampions(gs) {
+    const byChamp = new Map();
+    for (const g of gs) byChamp.set(g.champ, [...(byChamp.get(g.champ) || []), g]);
+    const rows = [...byChamp.entries()].sort((a, b) => b[1].length - a[1].length || winRate(b[1]) - winRate(a[1])).map(([champ, cg]) => ({
+      champ,
+      cells: [champIcon(champ), String(cg.length), pct(winRate(cg), 0), fmt(kda(cg), 2),
+        fmt(avg(cg.map((g) => g.cs / g.dur)), 1), fmt(avg(cg.map((g) => g.dmg / g.dur)), 0), pct(avg(cg.map((g) => g.kp)), 0),
+        dateLabel(Math.max(...cg.map((g) => g.ts)))],
+    }));
+    const host = $('champs');
+    if (!rows.length) { host.replaceChildren(el('p', { class: 'empty', text: 'Nessuna partita nel filtro corrente.' })); return; }
+    host.replaceChildren(table(['Campione', 'Partite', 'Win rate', 'KDA', 'CS/min', 'Danni/min', 'KP', 'Ultima'], rows, {
+      onRowClick: (r) => { filters.champ = filters.champ === r.champ ? 'all' : r.champ; $('f-champ').value = filters.champ; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); },
+    }));
+  }
+
+  function renderMates(gs) {
+    const partnerNames = new Set(DATA.partners.map((p) => p.name));
+    const byMate = new Map();
+    for (const g of gs) for (const idx of g.mates) byMate.set(idx, [...(byMate.get(idx) || []), g]);
+    const rows = [...byMate.entries()].filter(([, mg]) => mg.length >= 2).sort((a, b) => b[1].length - a[1].length).slice(0, 15)
+      .map(([idx, mg]) => {
+        const name = DATA.players[idx];
+        return { cells: [name, partnerNames.has(name) ? 'Partner duo' : '', String(mg.length), pct(winRate(mg), 0), fmt(kda(mg), 2), dateLabel(Math.max(...mg.map((g) => g.ts)))] };
+      });
+    const host = $('mates');
+    if (!rows.length) { host.replaceChildren(el('p', { class: 'empty', text: 'Nessun compagno ricorrente nel filtro corrente.' })); return; }
+    host.replaceChildren(table(['Giocatore', '', 'Partite insieme', 'Win rate insieme', 'Tuo KDA', 'Ultima'], rows, { leftCols: [1] }));
+  }
+
+  function renderRecent(gs) {
+    const rows = gs.slice(-20).reverse().map((g) => ({
+      cells: [dateLabel(g.ts, true), champIcon(g.champ), roleLabel(g.role), g.oppChamp ? champIcon(g.oppChamp) : '–',
+        el('span', { class: 'result' + (g.win ? ' win' : ''), text: g.win ? 'Vittoria' : 'Sconfitta' }),
+        `${g.k}/${g.d}/${g.a}`, fmt((g.k + g.a) / Math.max(1, g.d), 2), g.score == null ? '–' : fmt(g.score, 0), `${g.cs} (${fmt(g.cs / g.dur, 1)})`,
+        pct(g.kp, 0), fmt(g.dmg / g.dur, 0), `${Math.floor(g.dur)}:${String(Math.round((g.dur % 1) * 60)).padStart(2, '0')}`,
+        g.queue === 'Duo' ? `Duo con ${g.partners.join(', ')}` : 'Solo'],
+    }));
+    const host = $('recent');
+    if (!rows.length) { host.replaceChildren(el('p', { class: 'empty', text: 'Nessuna partita nel filtro corrente.' })); return; }
+    host.replaceChildren(table(['Data', 'Campione', 'Ruolo', 'Contro', 'Esito', 'K/D/A', 'KDA', 'Punteggio', 'CS (/min)', 'KP', 'Danni/min', 'Durata', 'Coda'], rows, { leftCols: [1, 2, 3, 4, 12] }));
+  }
+
+  // ---------------------------------------------------------------- render
+  function render() {
+    try { localStorage.setItem(`${STORE_KEY}:${DATA.slug}`, JSON.stringify(filters)); } catch (e) { /* storage non disponibile */ }
+    const gs = applyFilters();
+    $('f-count').textContent = `${gs.length} partite Ranked Solo/Duo nel filtro`;
+    renderTiles(gs);
+    renderSkills(gs);
+    renderScoreTrend(gs);
+    renderImpact(gs);
+    renderLane(gs);
+    renderParamTrends(gs);
+    renderComm(gs);
+    renderComparison();
+    renderWinRateTrend(gs);
+    renderLpTrend();
+    renderChampions(gs);
+    renderRoles(gs);
+    renderDurations(gs);
+    renderHeatmap(gs);
+    renderHabits(gs);
+    renderObjectives(gs);
+    renderAdvanced(gs);
+    renderMates(gs);
+    renderRecent(gs);
+    renderGuide();
+  }
+
+  // ---------------------------------------------------------------- avvio e cambio account
+  function boot(slug) {
+    prepareAccount(ALL.accounts.find((a) => a.slug === slug) || ALL.accounts[0]);
+    loadFilters();
+    renderHeader();
+    initFilters();
+    scoreGames();
+    render();
+  }
+  function switchAccount(slug) {
+    // aggiorna l'indirizzo (dashboard.html#account) senza ricaricare; in alcune anteprime non e' permesso
+    try { history.replaceState(null, '', '#' + slug); } catch (e) { /* ignorato */ }
+    boot(slug);
+    window.scrollTo({ top: 0 });
+  }
+  // Ogni account ha un nome di finestra fisso: riaprirlo riusa la sua finestra invece di crearne un'altra
+  function openAccountWindow(slug) {
+    window.open(`${location.href.split('#')[0]}#${slug}`, 'lol-' + slug, 'popup,width=1340,height=920');
+  }
+  window.addEventListener('hashchange', () => boot(decodeURIComponent(location.hash.slice(1))));
+  boot(decodeURIComponent(location.hash.slice(1)));
+  let resizeTimer;
+  window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
+})();
+</script>
+</body>
+</html>

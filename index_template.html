@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoL Account</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Saira+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e0d19;
+    --surface: #17162a;
+    --surface-2: #201f38;
+    --surface-3: #292845;
+    --text: #eceaf6;
+    --text-2: #aba8c8;
+    --muted: #75739a;
+    --line: rgba(255, 255, 255, 0.07);
+    --gold: #bf870f;
+    --gold-text: #f2c14e;
+    --good-text: #45d3c3;
+    --bad-text: #f2759f;
+    --warning: #f2b33d;
+    --display: "Saira Condensed", "Arial Narrow", system-ui, sans-serif;
+    --body: "Saira Semi Condensed", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; color: var(--text); font: 14px/1.5 var(--body); min-height: 100vh;
+    background:
+      radial-gradient(1100px 520px at 8% -8%, rgba(191, 135, 15, 0.14), transparent 62%),
+      radial-gradient(900px 480px at 100% -4%, rgba(21, 151, 168, 0.12), transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+  }
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 9px); }
+  .wrap { position: relative; max-width: 1180px; margin: 0 auto; padding: 32px 16px 56px; }
+  .kicker { font: 600 12px var(--display); text-transform: uppercase; letter-spacing: .18em; color: var(--gold-text); }
+  h1 { font: 700 40px/1.05 var(--display); margin: 4px 0 6px; }
+  .sub { color: var(--text-2); font-size: 13.5px; margin: 0 0 26px; max-width: 70ch; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 16px; }
+  .card {
+    position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 14px; padding: 18px;
+    background: linear-gradient(180deg, #1c1b32, #17162a 140px); border: 1px solid var(--line); border-radius: 6px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3); animation: rise .55s cubic-bezier(.2, .7, .2, 1) both; transition: border-color .2s, transform .2s;
+  }
+  .card:hover { border-color: rgba(242, 193, 78, 0.35); transform: translateY(-2px); }
+  .card::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, var(--tier, var(--gold)), transparent); }
+  .card:nth-child(2) { animation-delay: .06s; } .card:nth-child(3) { animation-delay: .12s; } .card:nth-child(n+4) { animation-delay: .18s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .head { display: flex; gap: 14px; align-items: center; }
+  .crest { width: 52px; height: 52px; flex: none; filter: drop-shadow(0 0 10px var(--tier-glow)); }
+  .name { font: 700 22px/1.1 var(--display); overflow-wrap: anywhere; }
+  .rank { font: 500 14px var(--display); letter-spacing: .04em; color: var(--text-2); text-transform: uppercase; }
+  .figures { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .figure { padding: 8px 10px; background: rgba(255, 255, 255, 0.015); }
+  .figure + .figure { border-left: 1px solid var(--line); }
+  .figure .label { font: 600 11px var(--display); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .figure .value { font: 600 24px/1.1 var(--display); }
+  .good { color: var(--good-text); } .bad { color: var(--bad-text); }
+  .champs { display: flex; gap: 8px; align-items: center; color: var(--muted); font: 600 11px var(--display); text-transform: uppercase; letter-spacing: .1em; }
+  .champs img { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--surface-3); }
+  .meta { color: var(--muted); font-size: 12.5px; }
+  .warn { font-size: 12.5px; color: var(--text-2); border-left: 3px solid var(--warning); padding-left: 8px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+  button, a.btn {
+    font: 600 13px var(--display); text-transform: uppercase; letter-spacing: .08em; border-radius: 6px; padding: 9px 14px; cursor: pointer;
+    text-decoration: none; border: 1px solid var(--line); color: var(--text); background: var(--surface-2); transition: border-color .15s, filter .15s;
+  }
+  button.primary { background: linear-gradient(180deg, #d69a1a, var(--gold)); color: #1a1205; border-color: transparent; }
+  button.primary:hover { filter: brightness(1.12); }
+  a.btn:hover { border-color: var(--gold-text); }
+  .missing { margin-top: 22px; color: var(--text-2); font-size: 13px; }
+  @media (prefers-reduced-motion: reduce) { .card { animation: none; transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Ranked Solo/Duo</div>
+  <h1>I tuoi account</h1>
+  <p class="sub" id="updated"></p>
+  <div class="cards" id="cards"></div>
+  <p class="missing" id="missing" hidden></p>
+</div>
+
+<script>const DATA = /*__DASHBOARD_DATA__*/null;</script>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const fmtPct = (v) => (v == null ? '–' : Math.round(v * 100) + '%');
+  const cap = (s) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : '');
+  const TIER_COLORS = { IRON: '#8b7d78', BRONZE: '#b7754a', SILVER: '#a9b8c8', GOLD: '#e0b04a', PLATINUM: '#47b9aa', EMERALD: '#35b56c',
+    DIAMOND: '#6b97ea', MASTER: '#b066e0', GRANDMASTER: '#e0574d', CHALLENGER: '#f3ce6a', UNRANKED: '#75739a' };
+  function el(tag, attrs = {}, ...children) {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null) continue;
+      if (k === 'class') n.className = v;
+      else if (k === 'text') n.textContent = v;
+      else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+      else n.setAttribute(k, v);
+    }
+    for (const c of children) if (c != null) n.append(c);
+    return n;
+  }
+  function crest(color) {
+    const s = document.createElementNS(NS, 'svg');
+    s.setAttribute('viewBox', '0 0 48 48');
+    s.setAttribute('class', 'crest');
+    s.innerHTML = `<path d="M24 3l17 8v13c0 10-7.5 17.5-17 21C14.5 41.5 7 34 7 24V11l17-8z" fill="${color}" fill-opacity=".16" stroke="${color}" stroke-width="2"/>`
+      + `<path d="M15 19l9 6 9-6M15 27l9 6 9-6" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+    return s;
+  }
+  // Ogni account ha un nome di finestra fisso: riaprirlo riusa la sua finestra invece di crearne un'altra
+  // (stesso nome usato dalla dashboard, cosi' l'account si apre sempre nella stessa finestra)
+  const openWindow = (a) => window.open(a.file, 'lol-' + a.slug, 'popup,width=1340,height=920');
+  function rankText(r) {
+    if (!r) return 'Rank non disponibile';
+    if (r.tier === 'UNRANKED') return 'Unranked';
+    const apex = ['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(r.tier);
+    return `${cap(r.tier)}${apex ? '' : ' ' + r.rank} · ${r.lp} LP`;
+  }
+
+  $('updated').textContent = `Aggiornato il ${new Date(DATA.generatedAt).toLocaleString('it-IT', { dateStyle: 'full', timeStyle: 'short' })}. `
+    + '"Apri in una finestra" apre ogni account nella sua finestra, così puoi tenerli affiancati.';
+
+  for (const a of DATA.accounts) {
+    const tierColor = TIER_COLORS[a.rank ? a.rank.tier : 'UNRANKED'] || TIER_COLORS.UNRANKED;
+    const champs = el('div', { class: 'champs' }, el('span', { text: 'Più giocati' }));
+    for (const c of a.champions) {
+      if (DATA.ddragon) {
+        const img = el('img', { src: `https://ddragon.leagueoflegends.com/cdn/${DATA.ddragon}/img/champion/${encodeURIComponent(c)}.png`, alt: c, title: c });
+        img.addEventListener('error', () => img.replaceWith(el('span', { text: c })));
+        champs.append(img);
+      } else champs.append(el('span', { text: c }));
+    }
+    const figure = (label, value, ratio) => el('div', { class: 'figure' }, el('div', { class: 'label', text: label }),
+      el('div', { class: 'value' + (ratio == null ? '' : ratio >= 0.5 ? ' good' : ' bad'), text: value }));
+    const card = el('article', { class: 'card' },
+      el('div', { class: 'head' }, crest(tierColor), el('div', {}, el('div', { class: 'name', text: a.player }), el('div', { class: 'rank', text: rankText(a.rank) }))),
+      el('div', { class: 'figures' },
+        figure('Partite', String(a.games)), figure('Win rate', fmtPct(a.winRate), a.winRate), figure(`Ultime ${a.recentGames}`, fmtPct(a.recentWinRate), a.recentWinRate)),
+      champs,
+      el('div', { class: 'meta', text: `Ultima partita: ${new Date(a.lastGame).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' })}` }),
+      a.status.ok ? null : el('div', { class: 'warn', text: a.status.message }),
+      el('div', { class: 'actions' },
+        el('button', { class: 'primary', type: 'button', text: 'Apri in una finestra', onclick: () => openWindow(a) }),
+        el('a', { class: 'btn', href: a.file, text: 'Apri qui' })));
+    card.style.setProperty('--tier', tierColor);
+    card.style.setProperty('--tier-glow', tierColor + '66');
+    $('cards').append(card);
+  }
+  if (DATA.missing.length) {
+    $('missing').hidden = false;
+    $('missing').textContent = `Nessun dato disponibile per: ${DATA.missing.join(', ')}. Controlla il Riot ID e il file output/refresh.log.`;
+  }
+})();
+</script>
+</body>
+</html>

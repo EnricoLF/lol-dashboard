@@ -1,0 +1,11 @@
+# API Key e configurazione personale
+.env
+
+# Partite scaricate da Riot: si possono riscaricare
+.cache_matches/
+.cache_benchmark/
+__pycache__/
+
+# Generati a ogni aggiornamento: pagine, log, rank e medie per lega
+output/
+data/
