@@ -2071,9 +2071,16 @@
     host.replaceChildren(table(['Giocatore', '', 'Partite insieme', 'Win rate insieme', 'Tuo KDA', 'Ultima'], rows, { leftCols: [1] }));
   }
 
+  // Esito della fase di corsia (Riot: +20% di oro ed esperienza sull'avversario diretto a 14 minuti)
+  function laneCell(g) {
+    if (g.lane == null) return '–';
+    const [cls, text] = g.lane > 0 ? ['good', 'Vinta'] : g.lane < 0 ? ['bad', 'Persa'] : ['muted', 'Pari'];
+    const cs = g.cs10Diff == null ? '' : ` · CS a 10 min ${signed(g.cs10Diff, 0)}`;
+    return el('span', { class: cls, text, title: `Fase di corsia ${text.toLowerCase()} contro ${g.oppChamp || "l'avversario"}${cs}` });
+  }
   function renderRecent(gs) {
     const rows = gs.slice(-20).reverse().map((g) => ({
-      cells: [dateLabel(g.ts, true), champIcon(g.champ), roleLabel(g.role), g.oppChamp ? champIcon(g.oppChamp) : '–',
+      cells: [dateLabel(g.ts, true), champIcon(g.champ), roleLabel(g.role), g.oppChamp ? champIcon(g.oppChamp) : '–', laneCell(g),
         el('span', { class: 'result' + (g.win ? ' win' : ''), text: g.win ? 'Vittoria' : 'Sconfitta' }), g.lp == null ? '–' : tone(g.lp),
         `${g.k}/${g.d}/${g.a}`, fmt((g.k + g.a) / Math.max(1, g.d), 2), g.score == null ? '–' : fmt(g.score, 0), `${g.cs} (${fmt(g.cs / g.dur, 1)})`,
         pct(g.kp, 0), fmt(g.dmg / g.dur, 0), `${Math.floor(g.dur)}:${String(Math.round((g.dur % 1) * 60)).padStart(2, '0')}`,
@@ -2081,7 +2088,7 @@
     }));
     const host = $('recent');
     if (!rows.length) { host.replaceChildren(el('p', { class: 'empty', text: 'Nessuna partita nel filtro corrente.' })); return; }
-    host.replaceChildren(table(['Data', 'Campione', 'Ruolo', 'Contro', 'Esito', 'LP', 'K/D/A', 'KDA', 'Punteggio', 'CS (/min)', 'KP', 'Danni/min', 'Durata', 'Coda'], rows, { leftCols: [1, 2, 3, 4, 13] }));
+    host.replaceChildren(table(['Data', 'Campione', 'Ruolo', 'Contro', 'Corsia', 'Esito', 'LP', 'K/D/A', 'KDA', 'Punteggio', 'CS (/min)', 'KP', 'Danni/min', 'Durata', 'Coda'], rows, { leftCols: [1, 2, 3, 4, 5, 14] }));
   }
 
   // ---------------------------------------------------------------- render
