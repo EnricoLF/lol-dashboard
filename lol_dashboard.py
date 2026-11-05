@@ -54,6 +54,8 @@ from lol_duo_analyzer import (
     load_dotenv,
     parse_riot_id,
 )
+from lol_level import MIN_GAMES as LEVEL_MIN_GAMES
+from lol_level import estimate_level
 from lol_metrics import PING_TYPES, build_distribution, cs_at_10, participant_metrics, ping_counts
 
 CACHE_DIR = SCRIPT_DIR / ".cache_matches"
@@ -481,7 +483,7 @@ def account_slug(game_name: str, tag_line: str) -> str:
 
 
 def update_account(account: dict, client: RiotClient | None, args: argparse.Namespace,
-                   state: dict, lp_history: dict) -> tuple[dict, dict] | None:
+                   state: dict, lp_history: dict, tiers: dict) -> tuple[dict, dict] | None:
     """Aggiorna un account e ne prepara i dati.
 
     Restituisce (dati per la dashboard, riepilogo per la pagina indice), o None se non ci sono dati.
@@ -541,6 +543,19 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
     season = {"start": start, "games": len(season_games)} if season_games else None
     if season:
         print(f"Stagione in corso: {len(season_games)} partite dal {datetime.fromtimestamp(start / 1000):%d/%m/%Y}")
+
+    # Livello stimato: stagione in corso, oppure le ultime 100 partite se nella stagione sono poche
+    scope = "season" if len(season_games) >= LEVEL_MIN_GAMES else "recent"
+    level_ids = {g["id"] for g in (season_games if scope == "season" else games[:100])}
+    level_rows = [row for m in matches if m["metadata"].get("matchId") in level_ids
+                  for p in m["info"]["participants"] if p.get("puuid") == puuid
+                  if (row := participant_metrics(m, p))]
+    level = estimate_level(level_rows, tiers, history[-1] if history else None, lobby["roles"])
+    if level:
+        level["scope"] = scope
+        verdicts = {"above": "sopra il rank", "below": "sotto il rank", "inline": "in linea con il rank"}
+        print(f"Livello stimato: {level['label']} ({level['lowLabel']} - {level['highLabel']}), "
+              f"{verdicts.get(level['verdict'], 'rank non disponibile')}")
     generated_at = datetime.now().isoformat(timespec="seconds")
     payload = {
         "slug": account["slug"],
@@ -551,6 +566,7 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
         "lpHistory": history,
         "lpStats": lp_stats(lp_blocks),
         "season": season,
+        "level": level,
         "lobby": lobby,
         "partners": partners,
         "players": players,
@@ -570,6 +586,7 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
         "status": status,
         "rank": history[-1] if history else None,
         "season": bool(season_games),
+        "level": level and {k: level[k] for k in ("label", "lowLabel", "highLabel", "verdict", "gap", "tier", "scope")},
         "games": len(shown),
         "winRate": sum(g["win"] for g in shown) / len(shown),
         "recentWinRate": sum(g["win"] for g in recent) / len(recent),
@@ -647,7 +664,7 @@ def main() -> int:
     try:
         client = ensure_api_key(client, args.region, accounts[0])
         for account in accounts:
-            result = update_account(account, client, args, state, lp_history)
+            result = update_account(account, client, args, state, lp_history, tier_file.get("tiers", {}))
             if result:
                 payloads.append(result[0])
                 summaries.append(result[1])

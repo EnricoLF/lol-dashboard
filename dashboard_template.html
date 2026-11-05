@@ -279,7 +279,82 @@
 
   footer { margin-top: 28px; color: var(--muted); font-size: 12px; }
 
-  @media (max-width: 900px) { .skills { grid-template-columns: 1fr; } }
+  /* Schede dei parametri cliccabili */
+  .panel-link { cursor: pointer; transition: border-color .15s, transform .15s; }
+  .panel-link:hover, .panel-link:focus-visible { border-color: var(--gold-text); outline: none; }
+  .link-btn { background: none; border: 0; padding: 0; color: var(--gold-text); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+  /* Il tuo livello */
+  .level { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 28px; align-items: start; }
+  .lvl-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .lvl-kicker { display: block; font: 600 11.5px var(--display); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .lvl-big { font: 600 44px/1.05 var(--display); color: var(--gold-text); margin-top: 2px; }
+  .verdict-tag { font: 600 13px var(--display); text-transform: uppercase; letter-spacing: .08em; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text-2); white-space: nowrap; }
+  .verdict-tag.good { color: var(--good-text); border-color: rgba(31, 184, 168, .45); }
+  .verdict-tag.bad { color: var(--bad-text); border-color: rgba(224, 82, 124, .45); }
+  .lvl-text { margin: 10px 0 18px; color: var(--text-2); }
+  .lvl-scale { position: relative; padding: 0; }
+  .lvl-bar { position: relative; display: grid; grid-template-columns: repeat(8, 1fr); height: 30px; border-radius: 6px; overflow: hidden; }
+  .lvl-seg { display: flex; align-items: center; justify-content: center; font: 600 11px var(--display); text-transform: uppercase; letter-spacing: .04em; color: #0e0d19;
+    background: color-mix(in srgb, var(--tier) 80%, #17162a); border-right: 1px solid rgba(0, 0, 0, .25); overflow: hidden; white-space: nowrap; }
+  .lvl-band { position: absolute; top: 0; bottom: 0; background: rgba(255, 255, 255, .28); border-left: 2px solid #fff; border-right: 2px solid #fff; pointer-events: auto; }
+  .lvl-mark { position: relative; height: 30px; }
+  .lvl-pin { position: absolute; top: 0; bottom: 0; width: 0; }
+  .lvl-pin span { position: absolute; transform: translateX(-50%); white-space: nowrap; font: 600 12.5px var(--display); letter-spacing: .03em; padding: 2px 8px; border-radius: 4px; }
+  .lvl-pin.start span { transform: translateX(-12px); }
+  .lvl-pin.end span { transform: translateX(calc(-100% + 12px)); }
+  .lvl-mark.rank .lvl-pin span { bottom: 8px; background: var(--surface-3); color: var(--text); }
+  .lvl-mark.est .lvl-pin span { top: 8px; background: var(--gold-text); color: #0e0d19; }
+  .lvl-pin::after { content: ""; position: absolute; left: -1px; width: 2px; height: 8px; }
+  .lvl-mark.rank .lvl-pin::after { bottom: 0; background: var(--text); }
+  .lvl-mark.est .lvl-pin::after { top: 0; background: var(--gold-text); }
+  .lvl-mark-space { height: 30px; }
+  .lvl-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+  .lvl-chips .lvl-kicker { width: 100%; }
+  .chip-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text-2); font: 13px var(--body); cursor: pointer; }
+  .chip-btn:hover, .chip-btn:focus-visible { border-color: var(--gold-text); color: var(--text); outline: none; }
+  .chip-btn strong { color: var(--text); font-weight: 600; }
+  .chip-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .lvl-curve { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+  .lvl-col { display: flex; flex-direction: column; align-items: center; }
+  .lvl-plot { position: relative; width: 100%; height: 90px; }
+  .lvl-colbar { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 70%; max-width: 28px; background: var(--surface-3); border-radius: 3px 3px 0 0; }
+  .lvl-fifty { position: absolute; left: -2px; right: -2px; top: 50%; border-top: 1px dashed var(--ref); }
+  .lvl-col.near .lvl-colbar { background: var(--gold-text); }
+  .lvl-val { font: 600 12px var(--display); margin-bottom: 2px; }
+  .lvl-name { font: 600 10.5px var(--display); text-transform: uppercase; color: var(--muted); height: 18px; line-height: 18px; }
+  .lvl-how { margin: 18px 0 0; }
+
+  /* Scheda dettagliata di un parametro */
+  .sheet { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 26px 28px 22px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--surface); color: var(--text); box-shadow: 0 24px 80px rgba(0, 0, 0, .6); }
+  .sheet::backdrop { background: rgba(5, 4, 12, .72); }
+  .sheet-close { position: sticky; top: 0; float: right; margin: -10px -12px 0 0; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 20px; line-height: 1; cursor: pointer; }
+  .sheet-close:hover { border-color: var(--gold-text); }
+  .sheet-head { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+  .sheet-head svg { width: 30px; height: 30px; fill: none; stroke: var(--gold-text); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .sheet-head h2 { margin: 0; }
+  .sheet-score { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; padding: 14px 16px; border-radius: 8px; background: var(--surface-2); }
+  .sheet-num { font: 600 56px/1 var(--display); min-width: 70px; text-align: center; }
+  .sheet-score p { margin: 4px 0; }
+  .sheet section { margin-top: 18px; }
+  .sheet section h3 { font: 600 13px var(--display); text-transform: uppercase; letter-spacing: .1em; color: var(--gold-text); margin: 0 0 6px; }
+  .sheet section p { margin: 4px 0; color: var(--text-2); line-height: 1.5; }
+  .sheet .tips { margin: 4px 0 0; padding-left: 20px; color: var(--text-2); line-height: 1.5; }
+  .sheet .tips li + li { margin-top: 6px; }
+  .ladder { display: grid; gap: 4px; margin: 8px 0 10px; }
+  .lad-row { display: grid; grid-template-columns: 72px 1fr 56px; gap: 10px; align-items: center; font-size: 12.5px; }
+  .lad-name { color: var(--text-2); }
+  .lad-num { text-align: right; font: 600 13px var(--display); color: var(--text-2); }
+  .lad-track { position: relative; height: 14px; background: var(--surface-2); border-radius: 3px; }
+  .lad-fill { height: 100%; border-radius: 3px; opacity: .75; }
+  .lad-row.beaten .lad-fill { opacity: .35; }
+  .lad-you { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--gold-text); }
+  .lad-you span { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 2px; white-space: nowrap; font: 600 11.5px var(--display); color: var(--gold-text); }
+  .ladder .lad-row:first-child { margin-top: 16px; }
+
+  @media (max-width: 900px) { .skills { grid-template-columns: 1fr; } .level { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .lvl-seg { font-size: 0; } .lvl-big { font-size: 36px; } .sheet { padding: 20px 16px; } }
   @media (max-width: 560px) {
     h1 { font-size: 26px; }
     .tile.hero { grid-column: 1 / -1; }
@@ -337,6 +412,12 @@
 
   <section class="grid">
     <article class="card wide">
+      <h2>Il tuo livello</h2>
+      <p class="sub" id="level-sub"></p>
+      <div id="level"></div>
+    </article>
+
+    <article class="card wide">
       <div class="card-head">
         <div>
           <h2>Profilo abilità</h2>
@@ -352,8 +433,8 @@
         <div class="chart radar" id="radar"></div>
         <div id="skills-side"></div>
       </div>
-      <p class="sub" style="margin:14px 0 0">Ogni asse va da 0 a 100: 50 = in linea con il riferimento scelto in "Confronta con".
-        <a href="#guida">Come vengono calcolati i punteggi →</a></p>
+      <p class="sub" style="margin:14px 0 0">Ogni asse va da 0 a 100: confrontando una tua partita con una del riferimento scelto in "Confronta con", nello stesso ruolo, è quante volte su 100 fai meglio tu. 50 = giocatore tipico.
+        Clicca un parametro per la scheda completa. <a href="#guida">Come vengono calcolati i punteggi →</a></p>
     </article>
 
     <article class="card">
@@ -493,6 +574,11 @@
   </section>
 
   <footer id="footer"></footer>
+
+  <dialog class="sheet" id="sheet" aria-labelledby="sheet-title">
+    <button type="button" class="sheet-close" id="sheet-close" aria-label="Chiudi">×</button>
+    <div id="sheet-body"></div>
+  </dialog>
 </div>
 
 <div id="tooltip" role="tooltip"></div>
@@ -996,40 +1082,90 @@
 
   // ---------------------------------------------------------------- abilita': definizioni
   // Stesse formule di lol_metrics.py: il confronto con i riferimenti e' corretto solo se coincidono.
+  // skip: ruoli in cui il parametro non si valuta. tips: consigli validi per tutti; roleTips: in piu' per ruolo.
   const AXES = [
     { key: 'kda', biased: true, axis: 'Combattimento', label: 'KDA per partita', fn: (g) => (g.k + g.a) / Math.max(1, g.d), f: (v) => fmt(v, 2),
       formula: '(Uccisioni + Assist) ÷ max(1, Morti), calcolato per ogni partita', fields: 'kills, deaths, assists',
-      meaning: 'Quanto contribuisci agli scontri rispetto a quanto spesso muori. È diverso dal KDA del riquadro in alto, che somma tutte le partite prima di dividere: qui ogni partita pesa allo stesso modo.',
-      tip: 'Si alza soprattutto morendo meno: entra negli scontri quando la tua squadra è in vantaggio numerico.' },
+      what: 'Quante uccisioni e assist ottieni per ogni morte. Con 0 morti si divide per 1, così una partita perfetta non vale "infinito".',
+      meaning: 'Dice se negli scontri dai più di quanto concedi. È diverso dal KDA del riquadro in alto, che somma tutte le partite prima di dividere: qui ogni partita pesa allo stesso modo, quindi una sola partita da 15/0/10 non falsa il valore.',
+      tips: ['Prima di entrare in uno scontro conta i nemici visibili sulla minimappa: se ne mancano due o più, aspetta o arretra.',
+        'Dopo una kill o un obiettivo torna in base a spendere l\'oro: restare in mappa con poca vita è il modo più comune di regalare una morte.',
+        'Nei teamfight colpisci il bersaglio più vicino che puoi raggiungere in sicurezza, invece di inseguire il carry nemico dietro la sua squadra.'],
+      roleTips: { JUNGLE: 'Ganka le corsie in cui il tuo alleato tiene l\'ondata vicino alla sua torre e il nemico non ha il Flash.',
+        UTILITY: 'Resta a portata del tuo ADC: da lì ogni sua uccisione diventa un tuo assist e le tue protezioni lo tengono vivo.' } },
     { key: 'dpm', axis: 'Aggressività', label: 'Danni ai campioni/min', fn: (g) => g.dmg / g.dur, f: (v) => fmt(v, 0),
       formula: 'Danni totali inflitti ai campioni nemici ÷ durata in minuti', fields: 'totalDamageDealtToChampions',
-      meaning: 'La pressione che metti sugli avversari: danni fisici, magici e puri (scudi e cure esclusi). Dividere per i minuti rende confrontabili partite corte e lunghe.',
-      tip: 'Cerca più scambi favorevoli in lane e, nei teamfight, resta in una posizione da cui puoi colpire senza essere raggiunto.' },
+      what: 'Tutti i danni (fisici, magici e puri) che infliggi ai campioni nemici, divisi per i minuti di gioco. Scudi e cure non contano.',
+      meaning: 'Misura la pressione che metti sugli avversari. Dividere per i minuti rende confrontabili partite corte e lunghe. Dipende molto dal campione: un tank o un support che protegge ne fa meno, ed è normale.',
+      tips: ['In corsia scambia colpi quando l\'avversario si avvicina a un minion per finirlo o ha appena usato la sua abilità principale.',
+        'Nei teamfight scegli una posizione da cui puoi colpire per tutto lo scontro: un carry eliminato nei primi secondi fa zero danni.',
+        'Completa il primo oggetto leggendario il prima possibile: è il salto di danni più grande della partita.'],
+      roleTips: { BOTTOM: 'Da ADC alterna attacchi base e movimento (kiting): gli attacchi base sono la maggior parte dei tuoi danni.',
+        UTILITY: 'Se giochi support che proteggono, i danni bassi sono normali: per te contano di più visione e partecipazione alle uccisioni.' } },
     { key: 'kp', biased: true, axis: 'Teamplay', label: 'Kill participation', fn: (g) => g.kp, f: (v) => pct(v, 0),
       formula: '(Uccisioni + Assist) ÷ uccisioni totali della tua squadra', fields: 'kills, assists (tuoi e dei compagni)',
-      meaning: 'Quanto sei presente dove la squadra combatte. Un valore basso spesso significa farmare da soli mentre il resto del team gioca 4 contro 5.',
-      tip: 'Segui i timer di draghi, Voidgrubs e Barone e raggiungi la squadra prima che l\'obiettivo compaia.' },
-    { key: 'csm', axis: 'Farm', label: 'CS al minuto', fn: (g) => g.cs / g.dur, f: (v) => fmt(v, 2),
+      what: 'La quota delle uccisioni della tua squadra a cui hai partecipato, con un\'uccisione o un assist.',
+      meaning: 'Dice quanto sei presente dove la squadra combatte. Un valore basso di solito significa farmare da soli mentre il resto del team gioca 4 contro 5.',
+      tips: ['Controlla il timer di draghi e Voidgrubs (Tab): spingi la tua ondata e raggiungi la squadra 30-40 secondi prima che compaiano.',
+        'Quando il tuo jungler va in una corsia vicina alla tua, muoviti anche tu verso di lui: basta un assist per contare.',
+        'Dopo il ritorno in base, se uno scontro sta per iniziare vicino a te, raggiungi la squadra prima di tornare in corsia.'],
+      roleTips: { TOP: 'Da top tieni il Teletrasporto per gli scontri intorno al drago, non solo per tornare in corsia.',
+        JUNGLE: 'Gioca vicino alla corsia che sta vincendo: è lì che nascono la maggior parte delle uccisioni.',
+        UTILITY: 'Dopo aver completato la missione del support, accompagna il jungler o il mid nelle loro azioni quando la tua corsia è ferma.' } },
+    { key: 'csm', axis: 'Farm', label: 'CS al minuto', fn: (g) => g.cs / g.dur, f: (v) => fmt(v, 2), skip: ['UTILITY'],
       formula: '(Minion + mostri neutrali uccisi) ÷ durata in minuti', fields: 'totalMinionsKilled, neutralMinionsKilled',
-      meaning: 'La fonte di oro più costante e controllabile. Per i support è naturalmente bassa: per questo il confronto avviene sempre con lo stesso ruolo.',
-      tip: 'Tra un\'azione e l\'altra torna su una lane libera o su un campo della giungla: ogni ondata lasciata morire è oro regalato.' },
-    { key: 'cs10', axis: 'Early game', label: 'CS a 10 minuti', fn: (g) => g.cs10, f: (v) => fmt(v, 0),
-      formula: 'Minion di lane + mostri della giungla uccisi nei primi 10 minuti', fields: 'challenges.laneMinionsFirst10Minutes, challenges.jungleCsBefore10Minutes',
-      meaning: 'Misura la fase di lane, prima che la partita si apra e i ruoli si mescolino. È tra i parametri meno influenzati dall\'andamento della partita, quindi riflette bene la tua abilità.',
-      tip: 'Allenati sull\'ultimo colpo ai minion sotto torre: è il momento in cui se ne perdono di più.' },
+      what: 'Quanti minion e mostri della giungla uccidi in media ogni minuto, per tutta la partita.',
+      meaning: 'È la fonte di oro più costante e quella che controlli di più: ogni minion vale circa 20 oro. È anche il parametro che distingue meglio una lega dall\'altra. Per i Support non si valuta: chi gioca bene lascia i minion al proprio ADC.',
+      tips: ['Dopo ogni scontro o ritorno in base vai sulla corsia o sul campo libero più vicino: le ondate che muoiono da sole sono oro perso.',
+        'A metà partita prendi l\'ondata in una corsia laterale prima di raggiungere la squadra per un obiettivo.',
+        'Allenati in modalità Pratica: 10 minuti, solo ultimi colpi ai minion, con l\'obiettivo indicato sopra.'],
+      roleTips: { JUNGLE: 'Ripulisci i tuoi campi appena rinascono e prendi le ondate di una corsia quando l\'alleato è morto o in base.',
+        MIDDLE: 'Dopo un\'azione in un\'altra corsia torna subito in mid: l\'ondata centrale arriva prima delle altre.' } },
+    { key: 'cs10', axis: 'Early game', label: 'CS a 10 minuti', fn: (g) => g.cs10, f: (v) => fmt(v, 0), skip: ['UTILITY'],
+      formula: 'Minion di corsia + mostri della giungla uccisi nei primi 10 minuti', fields: 'challenges.laneMinionsFirst10Minutes, challenges.jungleCsBefore10Minutes',
+      what: 'Quanti minion (e, per i jungler, mostri) uccidi nei primi 10 minuti, prima che la partita si apra.',
+      meaning: 'Misura la fase di corsia ed è tra i parametri meno influenzati da come finisce la partita: riflette bene l\'abilità individuale. Insieme ai CS/min è quello che cambia di più da una lega all\'altra. Per i Support non si valuta.',
+      tips: ['Sotto torre, di solito: due colpi della torre e un tuo attacco per i minion da mischia; un tuo attacco, uno della torre e un altro tuo per quelli a distanza.',
+        'Torna in base subito dopo aver spinto l\'ondata contro la torre nemica, così non perdi i minion mentre sei via.',
+        'Non inseguire l\'avversario oltre l\'ondata se non puoi ucciderlo: ogni minion perso nei primi 10 minuti non torna più.'],
+      roleTips: { JUNGLE: 'Fai il primo giro completo dei campi senza fermarti e torna su ognuno appena rinasce.',
+        BOTTOM: 'Da ADC lascia che il support scambi colpi e concentrati sugli ultimi colpi: nei primi minuti i minion valgono più delle kill.' } },
     { key: 'deaths10', axis: 'Sopravvivenza', label: 'Morti ogni 10 min', fn: (g) => g.d / (g.dur / 10), f: (v) => fmt(v, 2), invert: true,
       formula: 'Morti ÷ (durata in minuti ÷ 10). Il punteggio è invertito: meno morti = punteggio più alto', fields: 'deaths',
-      meaning: 'Ogni morte regala oro, esperienza e tempo agli avversari. Normalizzare per la durata evita di penalizzare le partite lunghe.',
-      tip: 'Prima di spingere una lane controlla quanti nemici mancano dalla mappa; senza visione, gioca più vicino alla tua torre.' },
+      what: 'Quante volte muori ogni 10 minuti di gioco. Qui meno è meglio.',
+      meaning: 'Ogni morte regala oro, esperienza e tempo agli avversari e lascia la tua squadra in inferiorità numerica. Dividere per la durata evita di penalizzare le partite lunghe.',
+      tips: ['Prima di superare metà mappa guarda la minimappa: se due o più nemici non sono visibili, torna indietro.',
+        'Sotto il 40% di vita non restare in corsia ad aspettare: torna in base, l\'ondata la recuperi.',
+        'Tieni il Flash per salvarti quando l\'avversario è in vantaggio; usalo per uccidere solo quando sei sicuro di riuscirci.'],
+      roleTips: { BOTTOM: 'Da ADC resta dietro al support e ai tuoi minion: la maggior parte delle morti arriva da una posizione troppo avanzata.',
+        TOP: 'Da top, quando l\'avversario sparisce dalla corsia, avvisa la squadra e resta vicino alla tua torre: spesso sta arrivando il jungler.' } },
     { key: 'vspm', axis: 'Visione', label: 'Vision score/min', fn: (g) => g.vis / g.dur, f: (v) => fmt(v, 2),
       formula: 'Vision score ÷ durata in minuti', fields: 'visionScore',
-      meaning: 'Il vision score di Riot premia le ward piazzate, quelle nemiche distrutte e il tempo in cui le tue ward danno visione utile.',
-      tip: 'Compra una control ward a ogni ritorno in base e usa il trinket appena è carico.' },
+      what: 'Il punteggio visione di Riot diviso per i minuti di gioco. Cresce con le ward piazzate, quelle nemiche distrutte e il tempo in cui le tue ward danno visione utile.',
+      meaning: 'La visione dice alla squadra dove sono i nemici: evita le imboscate e prepara gli obiettivi. Per i Support è il parametro che distingue di più una lega dall\'altra.',
+      tips: ['Compra una Control Ward a ogni ritorno in base: costa poco ed è uno degli acquisti più utili della partita.',
+        'Usa il trinket appena è carico, nei punti dove passano i nemici: ingressi della giungla e cespugli del fiume.',
+        'Un minuto prima di drago o Barone metti visione intorno all\'obiettivo e distruggi quella nemica.'],
+      roleTips: { UTILITY: 'Dopo la missione del support passa all\'Oracolo (trinket rosso) e ripulisci la visione nemica intorno agli obiettivi.',
+        JUNGLE: 'Mentre passi nella giungla nemica piazza una ward: ti dice dove si trova l\'altro jungler.' } },
     { key: 'objm', biased: true, axis: 'Obiettivi', label: 'Danni a obiettivi/min', fn: (g) => g.objDmg / g.dur, f: (v) => fmt(v, 0),
       formula: 'Danni a torri, inibitori, draghi, Barone, Araldo e Voidgrubs ÷ durata in minuti', fields: 'damageDealtToObjectives',
-      meaning: 'Quanto trasformi i vantaggi in obiettivi concreti. Per i jungler pesano molto i mostri epici, per i laner soprattutto le torri.',
-      tip: 'Dopo una kill o un\'ondata spinta colpisci la torre invece di tornare subito in base.' },
+      what: 'I danni che fai a torri, inibitori e mostri epici, divisi per i minuti di gioco.',
+      meaning: 'Dice quanto trasformi i vantaggi in obiettivi concreti, che sono ciò che fa vincere la partita. Per i jungler pesano molto i mostri epici, per chi sta in corsia soprattutto le torri.',
+      tips: ['Dopo aver vinto uno scontro o spinto l\'ondata, colpisci la torre invece di tornare subito in base.',
+        'Fino a 14 minuti le torri esterne danno oro extra per ogni placca: colpiscile quando l\'avversario di corsia è in base o morto.',
+        'Con un vantaggio numerico prendi un obiettivo (drago, Araldo, torre) invece di inseguire i nemici nella loro giungla.'],
+      roleTips: { JUNGLE: 'Prendi draghi e Voidgrubs quando le corsie vicine hanno l\'ondata spinta e possono raggiungerti per prime.',
+        TOP: 'Da top, quando l\'avversario è in base, spingi l\'ondata e colpisci la torre: in corsia singola è il tuo modo principale di aiutare.' } },
   ];
+  const scoredFor = (a, role) => !(a.skip || []).includes(role);
+  // Consigli da mostrare: prima quello del ruolo che giochi di piu', poi quelli generali
+  const tipsFor = (a, role) => [...(a.roleTips && a.roleTips[role] ? [a.roleTips[role]] : []), ...a.tips];
+  const mainRole = (gs) => {
+    const counts = {};
+    gs.forEach((g) => { counts[g.role] = (counts[g.role] || 0) + 1; });
+    return Object.keys(counts).sort((x, y) => counts[y] - counts[x])[0] || null;
+  };
   const ROLLING = 10;
   const MIN_GAMES = 5;
   const BENCH_ORDER = ['lobby', 'IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER'];
@@ -1057,28 +1193,38 @@
     return (i + (v - q[i]) / (q[i + 1] - q[i])) * step;
   }
 
-  // Punteggi 0-100 di ogni partita rispetto al riferimento scelto, per il ruolo giocato in quella partita
+  // Punteggi 0-100, tutti con lo stesso significato: quante prestazioni del riferimento scelto, nello stesso
+  // ruolo, hai superato (50 = tipico). Stesse regole di lol_metrics.py (axis_score, raw_game_score).
+  //  - parametro in una partita: percentile del tuo valore;
+  //  - punteggio partita: percentile della media degli 8 parametri, calibrato sulle partite del riferimento;
+  //  - punteggio di un parametro (radar): media dei punteggi partita per partita.
+  const MIN_SCORED_AXES = 6;
   function scoreGames() {
     const roles = benchRoles();
     for (const g of games) {
       g.scores = {};
       const values = [];
+      const stats = roles[g.role] || {};
       for (const a of AXES) {
-        const stats = roles[g.role] && roles[g.role][a.key];
+        const s = scoredFor(a, g.role) && stats[a.key];
         const v = a.fn(g);
-        const p = stats && v != null ? percentileOf(v, stats.q) : null;
+        const p = s && v != null ? percentileOf(v, s.q) : null;
         g.scores[a.key] = p == null ? null : a.invert ? 100 - p : p;
         if (p != null) values.push(g.scores[a.key]);
       }
-      g.score = values.length >= 6 ? avg(values) : null;
+      const raw = values.length >= MIN_SCORED_AXES ? avg(values) : null;
+      // con medie di lega vecchie (senza "score") resta la media semplice
+      g.score = raw == null ? null : stats.score ? percentileOf(raw, stats.score.q) : raw;
     }
   }
+  // you: il tuo valore tipico (mediana); ref: il valore tipico del riferimento (mediana) nei ruoli che giochi
   function axisSummary(gs, a) {
     const roles = benchRoles();
     const sg = gs.filter((g) => g.scores[a.key] != null);
-    return { score: avg(sg.map((g) => g.scores[a.key])), you: avg(sg.map(a.fn)),
-      ref: avg(sg.map((g) => roles[g.role][a.key].mean)), n: sg.length };
+    return { score: avg(sg.map((g) => g.scores[a.key])), you: median(sg.map(a.fn)),
+      ref: avg(sg.map((g) => roles[g.role][a.key].q[10])), n: sg.length };
   }
+  const scoreTone = (score) => (score == null ? '' : score >= 50 ? 'good' : 'bad');
   // Win rate nelle partite migliori vs peggiori della tua mediana (escluse quelle uguali alla mediana)
   function winImpact(gs, k) {
     const vals = gs.map((g) => [g, k.fn(g)]).filter(([, v]) => v != null);
@@ -1137,7 +1283,8 @@
     const size = Math.min(520, Math.max(300, host.clientWidth)), c = size / 2, R = c - 92, n = AXES.length;
     const ang = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
     const pt = (i, v, extra = 0) => [c + Math.cos(ang(i)) * (R * (v / 100) + extra), c + Math.sin(ang(i)) * (R * (v / 100) + extra)];
-    const poly = (vals) => vals.map((v, i) => pt(i, v ?? 0).map((x) => x.toFixed(1)).join(',')).join(' ');
+    // un parametro non valutato (es. CS per i Support) si disegna sul 50, con il vertice vuoto
+    const poly = (vals) => vals.map((v, i) => pt(i, v ?? 50).map((x) => x.toFixed(1)).join(',')).join(' ');
     const s = svg('svg', { width: size, height: size, viewBox: `0 0 ${size} ${size}`, role: 'img', 'aria-label': 'Radar delle abilità' });
     s.style.setProperty('--c', `${c}px`);
     // fasce concentriche alternate, dall'esterno verso l'interno
@@ -1168,23 +1315,29 @@
       }
       // vertici con anello del colore della superficie + area di hover piu' grande del segno
       for (const sr of series) {
-        const [x, y] = pt(i, sr.sums[i].score ?? 0);
-        group.append(svg('circle', { cx: x, cy: y, r: 4.5, style: `fill: ${sr.color}; stroke: var(--surface); stroke-width: 2` }),
+        const missing = sr.sums[i].score == null;
+        const [x, y] = pt(i, sr.sums[i].score ?? 50);
+        group.append(svg('circle', { cx: x, cy: y, r: 4.5, style: missing ? `fill: var(--surface); stroke: ${sr.color}; stroke-width: 1.5; stroke-dasharray: 2 2` : `fill: ${sr.color}; stroke: var(--surface); stroke-width: 2` }),
           svg('circle', { cx: x, cy: y, r: 12, fill: 'transparent' }));
       }
       const rows = series.map((sr) => [sr.sums[i].score == null ? 'n/d' : `${Math.round(sr.sums[i].score)}/100`,
-        `${sr.name}: ${sr.sums[i].you == null ? '–' : a.f(sr.sums[i].you)} (rif. ${sr.sums[i].ref == null ? '–' : a.f(sr.sums[i].ref)})`]);
+        `${sr.name}: ${sr.sums[i].you == null ? '–' : a.f(sr.sums[i].you)} (tipico ${sr.sums[i].ref == null ? '–' : a.f(sr.sums[i].ref)})`]);
+      rows.push(['', 'Clic per la scheda completa']);
       group.addEventListener('pointermove', (e) => showTip(e.clientX, e.clientY, `${a.axis} · ${a.label}`, rows));
       group.addEventListener('pointerleave', hideTip);
       group.addEventListener('focus', () => { const r = group.getBoundingClientRect(); showTip(r.right, r.top, `${a.axis} · ${a.label}`, rows); });
       group.addEventListener('blur', hideTip);
+      group.addEventListener('click', () => { hideTip(); openSheet(a); });
+      group.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); hideTip(); openSheet(a); } });
+      group.style.cursor = 'pointer';
       s.append(group);
     });
     host.append(s);
   }
 
   // "Tu X vs rif. Y" con barre a confronto, come nelle schede del pannello abilita'
-  function versus(a, entries, ref, big = true, headline) {
+  // cls: colore del numero principale; per i parametri del radar lo decide il punteggio (>= 50 verde)
+  function versus(a, entries, ref, big = true, headline, cls) {
     const max = Math.max(...entries.map((e) => e.you ?? 0), ref ?? 0) * 1.08 || 1;
     const bar = (label, value, color) => {
       const fill = el('div', { class: 'fill' });
@@ -1195,7 +1348,7 @@
     const first = headline === undefined ? entries[0] : { you: headline };
     return el('div', { class: 'versus' },
       el('div', { class: 'nums', style: big ? null : 'font-size:30px' },
-        el('span', { class: verdict(a, first.you, ref), text: first.you == null ? '–' : a.f(first.you) }),
+        el('span', { class: cls ?? verdict(a, first.you, ref), text: first.you == null ? '–' : a.f(first.you) }),
         el('small', { text: 'vs' }),
         el('span', { class: 'ref-num', text: ref == null ? '–' : a.f(ref) })),
       el('div', { class: 'vbars' }, ...entries.map((e) => bar(e.short, e.you, e.color)), bar('Rif.', ref, 'var(--ref)')));
@@ -1226,14 +1379,15 @@
       const best = all.reduce((b, x) => (x.s.score > b.s.score ? x : b));
       const body = el('div', { class: 'panel-body' },
         el('div', { class: 'focus-title' }, icon(focus.a.key), document.createTextNode(focus.a.axis)),
-        versus(focus.a, [{ short: 'Tu', you: focus.s.you, color: 'var(--s1)' }], focus.s.ref),
+        versus(focus.a, [{ short: 'Tu', you: focus.s.you, color: 'var(--s1)' }], focus.s.ref, true, undefined, scoreTone(focus.s.score)),
         el('p', {}, document.createTextNode(`${focus.a.label} · punteggio `), el('strong', { text: `${Math.round(focus.s.score)}/100` }),
-          document.createTextNode(`: in media fai meglio del ${Math.round(focus.s.score)}% delle prestazioni di riferimento nello stesso ruolo.`)));
+          document.createTextNode(`: confrontando una tua partita con una di ${benchName()} nello stesso ruolo, fai meglio tu ${Math.round(focus.s.score)} volte su 100.`)));
       if (focus.imp) {
         body.append(el('p', { text: `Nelle tue partite, quando fai meglio della tua mediana (${focus.a.f(focus.imp.med)}) vinci il ${pct(winRate(focus.imp.better), 0)}, altrimenti il ${pct(winRate(focus.imp.worse), 0)}.`
           + (focus.a.biased ? ' Parte di questa differenza dipende dal fatto che chi vince sale naturalmente in questo parametro.' : '') }));
       }
-      body.append(el('p', {}, el('strong', { text: 'Come migliorare: ' }), document.createTextNode(focus.a.tip)),
+      body.append(el('p', {}, el('strong', { text: 'Come migliorare: ' }), document.createTextNode(tipsFor(focus.a, mainRole(gs))[0])),
+        el('p', {}, el('button', { type: 'button', class: 'link-btn', text: `Scheda completa di ${focus.a.axis} →`, onclick: () => openSheet(focus.a) })),
         el('p', {}, document.createTextNode('Punto di forza: '), el('strong', { text: `${best.a.axis} (${Math.round(best.s.score)}/100)` })));
       side.append(el('div', { class: 'panel focus' },
         el('div', { class: 'panel-head' }, el('span', { text: 'Abilità da migliorare' }), el('span', { class: 'vs-tag', text: `vs ${benchName()}` })),
@@ -1246,14 +1400,189 @@
       const entries = series.map((sr) => ({ short: SHORT[sr.name] || sr.name, you: sr.sums[i].you, color: sr.color }));
       const ref = series[0].sums[i].ref;
       const scores = series.map((sr) => (sr.sums[i].score == null ? 'n/d' : Math.round(sr.sums[i].score))).join(' · ');
-      return el('div', { class: 'panel' },
+      // tutta la scheda e' cliccabile e apre la spiegazione dettagliata del parametro
+      return el('div', { class: 'panel panel-link', role: 'button', tabindex: 0, title: `Scheda completa: ${a.axis}`, onclick: () => openSheet(a),
+        onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSheet(a); } } },
         el('div', { class: 'panel-head' }, icon(a.key), el('span', { text: a.axis }), el('span', { class: 'score-tag', text: `${scores}/100` })),
         el('div', { class: 'panel-body' },
-          versus(a, entries, ref, false),
-          el('div', { class: 'metric', text: series.length > 1
+          versus(a, entries, ref, false, undefined, scoreTone(series[0].sums[i].score)),
+          el('div', { class: 'metric', text: (series.length > 1
             ? `${a.label} · ` + series.map((sr) => `${SHORT[sr.name]} ${sr.sums[i].you == null ? '–' : a.f(sr.sums[i].you)}`).join(' · ')
-            : a.label })));
+            : `${a.label} · tu vs valore tipico`) + ' · Dettagli →' })));
     })));
+  }
+
+  // ---------------------------------------------------------------- il tuo livello (calcolato dallo script)
+  const LEVEL_TIERS = ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER'];
+  const tierName = (t) => (t === 'MASTER' ? 'Master+' : cap(t));
+  const axisByKey = (k) => AXES.find((a) => a.key === k);
+  // Posizione sulla scala delle leghe (0 = centro di Iron ... 7 = Master+) -> percentuale della barra
+  const ladderPct = (p) => `${((Math.min(7.5, Math.max(-0.5, p)) + 0.5) / 8) * 100}%`;
+  const divisionsText = (gap) => {
+    const n = Math.round(Math.abs(gap) * 4);
+    return n >= 4 && n % 4 === 0 ? `${n / 4 === 1 ? 'una lega' : `${n / 4} leghe`}` : `${n === 1 ? 'una divisione' : `${n} divisioni`}`;
+  };
+  // Parametri usati per la stima, raggruppati per ruolo: "Top e Mid: CS/min, CS a 10 min"
+  function levelAxesText(byRole, roles) {
+    const groups = new Map();
+    for (const role of ROLE_ORDER.filter((r) => roles.includes(r) && byRole[r])) {
+      const text = byRole[role].map((k) => axisByKey(k).label).join(', ') || 'nessuno';
+      groups.set(text, [...(groups.get(text) || []), roleLabel(role)]);
+    }
+    const list = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}` : xs[0]);
+    return [...groups].map(([text, rs]) => `${list(rs)}: ${text}`).join(' · ');
+  }
+  function renderLevel() {
+    const lv = DATA.level, host = $('level');
+    if (!lv) {
+      $('level-sub').textContent = '';
+      host.replaceChildren(el('p', { class: 'empty', text: 'Servono almeno 20 partite e le medie di tutte le leghe per stimare il livello.' }));
+      return;
+    }
+    const seasonGames = DATA.season ? games.filter((g) => g.ts >= DATA.season.start) : games;
+    $('level-sub').textContent = `${lv.scope === 'season' ? 'Stagione in corso' : 'Ultime 100 partite'} · ${lv.games} partite, tutti i ruoli. Non dipende dai filtri.`;
+    const rank = DATA.rank && TIERS.includes(DATA.rank.tier) ? DATA.rank : null;
+    const VERDICT = {
+      above: ['good', 'Sopra il tuo rank', `Le tue prestazioni sono circa ${divisionsText(lv.gap)} sopra il tuo rank: se le mantieni, è probabile che tu salga.`],
+      inline: ['', 'In linea con il rank', 'Il tuo rank rispecchia le tue prestazioni: per salire devi migliorare nei parametri qui sotto.'],
+      below: ['bad', 'Sotto il tuo rank', `Le tue prestazioni misurabili sono circa ${divisionsText(lv.gap)} sotto il tuo rank. Può succedere se giochi spesso in duo con giocatori più forti, se stai provando ruoli o campioni nuovi, o se il tuo punto di forza non si vede nei numeri (decisioni, gestione della mappa).`],
+    };
+    const [cls, tag, text] = VERDICT[lv.verdict] || ['', 'Rank non disponibile', 'Senza un rank in Solo/Duo non si può dire se sei sopra o sotto.'];
+
+    // Scala delle leghe: rank attuale sopra, livello stimato (con intervallo probabile) sotto
+    const scale = el('div', { class: 'lvl-scale' });
+    const bar = el('div', { class: 'lvl-bar' }, ...LEVEL_TIERS.map((t) => {
+      const seg = el('div', { class: 'lvl-seg', text: tierName(t) });
+      seg.style.setProperty('--tier', TIER_COLORS[t]);
+      return seg;
+    }));
+    const band = el('div', { class: 'lvl-band', title: `Intervallo probabile: ${lv.lowLabel} – ${lv.highLabel}` });
+    band.style.left = ladderPct(lv.low);
+    band.style.width = `calc(${ladderPct(lv.high)} - ${ladderPct(lv.low)})`;
+    bar.append(band);
+    // Riga a tutta larghezza con un segnaposto a larghezza zero: l'etichetta non allarga la pagina e
+    // vicino ai bordi si allinea a sinistra o a destra invece di uscire
+    const mark = (p, label, kind) => {
+      const share = (Math.min(7.5, Math.max(-0.5, p)) + 0.5) / 8;
+      const pin = el('div', { class: 'lvl-pin' + (share < 0.18 ? ' start' : share > 0.82 ? ' end' : '') }, el('span', { text: label }));
+      pin.style.left = ladderPct(p);
+      return el('div', { class: `lvl-mark ${kind}` }, pin);
+    };
+    scale.append(rank && lv.rankPosition != null ? mark(lv.rankPosition, `Rank: ${rankName(rank)}`, 'rank') : el('div', { class: 'lvl-mark-space' }),
+      bar, mark(lv.position, `Prestazioni: ${lv.label}`, 'est'));
+
+    // Punteggio nei parametri che distinguono le leghe, se giocassi in ciascuna lega (50 = giocatore tipico)
+    const curve = el('div', { class: 'lvl-curve', role: 'img', 'aria-label': 'Il tuo punteggio confrontato con ogni lega' },
+      ...LEVEL_TIERS.map((t) => {
+        const v = lv.curve[t];
+        const colbar = el('div', { class: 'lvl-colbar' });
+        colbar.style.height = `${v}%`;
+        const col = el('div', { class: 'lvl-col' + (t === lv.tier ? ' near' : '') },
+          el('span', { class: 'lvl-val ' + scoreTone(v), text: fmt(v, 0) }),
+          el('div', { class: 'lvl-plot' }, colbar, el('div', { class: 'lvl-fifty' })), el('span', { class: 'lvl-name', text: tierName(t).slice(0, 4) }));
+        col.title = `Contro i ${tierName(t)}: ${fmt(v, 0)}/100`;
+        return col;
+      }));
+
+    const chips = Object.entries(lv.axisLevels || {}).sort((x, y) => AXES.findIndex((a) => a.key === x[0]) - AXES.findIndex((a) => a.key === y[0]))
+      .map(([k, v]) => el('button', { type: 'button', class: 'chip-btn', onclick: () => openSheet(axisByKey(k)) },
+        icon(k), el('span', { text: `${axisByKey(k).label}: ` }), el('strong', { text: v.label })));
+    const ownTier = lv.ownTier ? tierName(lv.ownTier) : null;
+    const stat = (label, value, tip) => el('div', { class: 'stat', title: tip || '' }, el('span', { text: label }), value);
+    const scoreSpan = (v) => el('span', { class: scoreTone(v), text: v == null ? '–' : `${fmt(v, 0)}/100` });
+
+    host.replaceChildren(el('div', { class: 'level' },
+      el('div', { class: 'lvl-main' },
+        el('div', { class: 'lvl-head' }, el('div', {}, el('span', { class: 'lvl-kicker', text: 'Lega più vicina alle tue prestazioni' }),
+          el('div', { class: 'lvl-big', text: lv.label })), el('span', { class: `verdict-tag ${cls}`, text: tag })),
+        el('p', { class: 'lvl-text', text }),
+        scale,
+        el('p', { class: 'sub', style: 'margin:10px 0 0', text: lv.lowLabel === lv.highLabel ? `Stima solida: ${lv.label}.` : `Intervallo probabile (80%): da ${lv.lowLabel} a ${lv.highLabel}.` }),
+        chips.length ? el('div', { class: 'lvl-chips' }, el('span', { class: 'lvl-kicker', text: 'Livello per parametro' }), ...chips) : null),
+      el('div', { class: 'lvl-side' },
+        el('h3', { class: 'mini', text: 'Il tuo punteggio contro ogni lega' }), curve,
+        el('div', { class: 'stats', style: 'margin-top:12px' },
+          stat(ownTier ? `Contro i ${ownTier} (la tua lega)` : 'Contro la tua lega', scoreSpan(lv.scoreOwnTier), 'Punteggio medio delle tue partite, tutti gli 8 parametri'),
+          stat('Contro la tua lobby (MMR simile)', scoreSpan(lv.scoreLobby), 'Gli altri 9 giocatori delle tue partite: il confronto più diretto con il tuo MMR')))),
+      el('p', { class: 'sub lvl-how' },
+        `Come si stima: per ogni lega si calcola il punteggio che avresti se le tue partite fossero confrontate con i giocatori di quella lega, nello stesso ruolo. `
+        + `La lega più vicina è quella in cui scendi a 50, cioè dove saresti il giocatore tipico. Si usano solo i parametri che cambiano davvero da una lega all'altra: `
+        + `${levelAxesText(lv.axesByRole, [...new Set(seasonGames.map((g) => g.role))])}. KDA, morti e danni sono quasi uguali in tutte le leghe, perché ogni uccisione è la morte di qualcun altro.`));
+  }
+
+  // ---------------------------------------------------------------- scheda dettagliata di un parametro
+  function openSheet(a) {
+    const gs = applyFilters();
+    const role = mainRole(gs);
+    const s = axisSummary(gs, a);
+    const roleGames = gs.filter((g) => g.role === role);
+    const youRole = median(roleGames.map(a.fn).filter((v) => v != null));
+    const scored = role && scoredFor(a, role);
+    const level = DATA.level && DATA.level.axisLevels ? DATA.level.axisLevels[a.key] : null;
+    const section = (title, ...parts) => el('section', {}, el('h3', { text: title }), ...parts);
+    const para = (...parts) => el('p', {}, ...parts.map((x) => (typeof x === 'string' ? document.createTextNode(x) : x)));
+    const better = (x, y) => (a.invert ? x < y : x > y);
+
+    // Valore tipico per lega nel ruolo principale, con il tuo valore come linea verticale
+    const typical = LEVEL_TIERS.map((t) => ({ t, v: BENCH[t] && BENCH[t].roles[role] && BENCH[t].roles[role][a.key] ? BENCH[t].roles[role][a.key].q[10] : null })).filter((r) => r.v != null);
+    let ladder = null, target = null;
+    if (scored && typical.length) {
+      const max = Math.max(...typical.map((r) => r.v), youRole ?? 0) * 1.12 || 1;
+      ladder = el('div', { class: 'ladder' }, ...typical.map((r, i) => {
+        const fill = el('div', { class: 'lad-fill' });
+        fill.style.width = `${(r.v / max) * 100}%`;
+        fill.style.background = TIER_COLORS[r.t];
+        const track = el('div', { class: 'lad-track' }, fill);
+        if (youRole != null) {
+          const line = el('div', { class: 'lad-you' }, i === 0 ? el('span', { text: `Tu ${a.f(youRole)}` }) : null);
+          line.style.left = `${(youRole / max) * 100}%`;
+          track.append(line);
+        }
+        return el('div', { class: 'lad-row' + (youRole != null && better(youRole, r.v) ? ' beaten' : '') },
+          el('span', { class: 'lad-name', text: tierName(r.t) }), track, el('span', { class: 'lad-num', text: a.f(r.v) }));
+      }));
+      // Obiettivo: il valore tipico della prima lega sopra la tua che non superi ancora
+      const own = DATA.rank && TIERS.includes(DATA.rank.tier) ? Math.min(7, TIERS.indexOf(DATA.rank.tier)) : -1;
+      const next = typical.find((r) => LEVEL_TIERS.indexOf(r.t) > own && (youRole == null || !better(youRole, r.v)));
+      if (next && youRole != null) {
+        target = para(el('strong', { text: 'Obiettivo concreto: ' }),
+          `${a.invert ? 'scendere a' : 'arrivare a'} ${a.f(next.v)} (oggi ${a.f(youRole)}), il valore tipico dei ${tierName(next.t)} da ${roleLabel(role)}.`);
+      } else if (youRole != null) {
+        target = para(el('strong', { text: 'Obiettivo concreto: ' }), 'sei già oltre il valore tipico di tutte le leghe più alte della tua: mantienilo.');
+      }
+    }
+
+    const notes = [];
+    if (a.invert) notes.push('Qui meno è meglio: il punteggio è invertito (100 = muori meno di tutti).');
+    if (a.biased) notes.push('Chi vince tende ad avere valori più alti: una parte della differenza con il riferimento è un effetto del risultato, non la sua causa.');
+    if (a.skip) notes.push(`Non si valuta per i ${a.skip.map(roleLabel).join(', ')}: in quel ruolo un valore alto non indica una partita migliore.`);
+
+    $('sheet-body').replaceChildren(
+      el('div', { class: 'sheet-head' }, icon(a.key), el('div', {}, el('h2', { id: 'sheet-title', text: a.axis }), el('div', { class: 'sub', style: 'margin:0', text: a.label }))),
+      el('div', { class: 'sheet-score' },
+        el('div', { class: `sheet-num ${scoreTone(s.score)}`, text: s.score == null ? 'n/d' : `${Math.round(s.score)}` }),
+        el('div', {},
+          s.score == null
+            ? para(scored === false ? `Non si valuta per i ${roleLabel(role)}.` : 'Nessuna partita valutabile nel filtro corrente.')
+            : para('Confrontando una tua partita con una di ', el('strong', { text: benchName() }), ` nello stesso ruolo, fai meglio tu ${Math.round(s.score)} volte su 100. 50 = giocatore tipico.`),
+          s.score == null ? null : para(`Il tuo valore tipico: `, el('strong', { text: a.f(s.you) }), ` · tipico di ${benchName()}: `, el('strong', { text: a.f(s.ref) }), ` · ${s.n} partite valutate.`))),
+      section('Livello di questo parametro',
+        level ? para('Stagione in corso, tutti i ruoli: in questo parametro giochi come un ', el('strong', { text: level.label }),
+          level.bound === 'max' ? ' o più (sei sopra la media anche dei Master+).' : level.bound === 'min' ? ' o meno (sei sotto la media anche degli Iron).' : ', cioè la lega in cui saresti il giocatore tipico.')
+          : para(scored === false ? '–' : 'Non indica la lega: nel tuo ruolo il giocatore tipico ha più o meno lo stesso valore da Iron a Master+. Serve a capire come giochi rispetto ai tuoi avversari, non il tuo livello.'),
+        ladder ? el('h3', { class: 'mini', text: `Valore tipico per lega · ${roleLabel(role)}${youRole != null ? ` (tu: ${a.f(youRole)} in ${roleGames.length} partite)` : ''}` }) : null,
+        ladder, target),
+      section('Cosa misura', para(a.what)),
+      section('Come si calcola', para(a.formula + '.'), para('Dati Riot: ', el('code', { text: a.fields }))),
+      section('Perché conta', para(a.meaning)),
+      notes.length ? section('Da sapere', ...notes.map((n) => para(n))) : null,
+      scored === false
+        ? section('Come alzarlo', para(`Nel tuo ruolo principale (${roleLabel(role)}) questo parametro non conta: concentrati sugli altri.`))
+        : section('Come alzarlo', el('ul', { class: 'tips' }, ...tipsFor(a, role).map((t) => el('li', { text: t })))),
+      el('p', { class: 'sub', style: 'margin:16px 0 0', text: `Filtro attuale: ${gs.length} partite · ruolo principale ${roleLabel(role)} · riferimento ${benchName()}.` }));
+    const dialog = $('sheet');
+    if (!dialog.open) dialog.showModal();
+    dialog.scrollTop = 0;
   }
 
   // ---------------------------------------------------------------- abilita': andamento nel tempo
@@ -1513,15 +1842,17 @@
 
     const intro = [
       section('Il punteggio da 0 a 100',
-        p('Per ogni partita il tuo valore viene confrontato con quello dei giocatori di riferimento ', strong('nello stesso ruolo'),
-          ' di quella partita (le tue partite da Mid con i Mid del riferimento, quelle da Support con i Support, e così via).'),
-        p('Il punteggio è il ', strong('percentile'), ': 70 significa che in quella partita hai fatto meglio del 70% delle prestazioni di riferimento. ',
-          'Il punteggio di un asse è la media dei percentili di tutte le partite nel filtro: così ', strong('50 corrisponde esattamente al giocatore medio'),
-          ' del riferimento, anche se giochi più ruoli.'),
-        p('Accanto al punteggio trovi il valore reale (es. 6,4 CS/min) e la media del riferimento per gli stessi ruoli, così vedi anche di quanto sei sopra o sotto.')),
+        p('Tutti i punteggi della dashboard hanno lo stesso significato: ', strong('quante prestazioni del riferimento hai superato, su 100'),
+          ', sempre ', strong('nello stesso ruolo'), ' (le tue partite da Mid con i Mid del riferimento, quelle da Top con i Top, e così via). ',
+          strong('50 = giocatore tipico'), ' del riferimento; 70 = meglio del 70%; 30 = meglio solo del 30%.'),
+        p(strong('Un parametro in una partita'), ': es. 6,4 CS/min, se il 62% dei Top del riferimento fa meno di 6,4, vale 62. Per le morti vale il contrario: meno morti, punteggio più alto.'),
+        p(strong('Un parametro nel radar'), ': la media dei punteggi delle tue partite. In pratica: confrontando una tua partita a caso con una del riferimento, quante volte su 100 fai meglio tu.'),
+        p('Accanto al punteggio trovi il tuo ', strong('valore tipico'), ' (la mediana: metà delle tue partite sta sopra, metà sotto) e quello del riferimento negli stessi ruoli. ',
+          'Il colore segue il punteggio: verde da 50 in su, rosa sotto 50.'),
+        p(strong('Support'), ': CS/min e CS a 10 minuti non si valutano, perché un Support che gioca bene lascia i minion al suo ADC. Le partite da Support hanno quindi 6 parametri invece di 8.')),
       section('Con chi ti confronti',
         p(strong('La tua lobby'), ': gli altri 9 giocatori di tutte le tue partite in archivio. Il matchmaking li sceglie con un MMR simile al tuo, quindi è il confronto più diretto con il tuo livello reale.'),
-        p(strong('Leghe'), tiers.length ? ` (${tiers.join(', ')})` : '', ': per ogni lega si prende un campione di giocatori dalla classifica ufficiale (divisione II; per Master+ la classifica Master) e alcune loro partite Ranked recenti; ogni partita conta tutti e 10 i partecipanti. ',
+        p(strong('Leghe'), tiers.length ? ` (${tiers.join(', ')})` : '', ': per ogni lega si prende a caso un campione di giocatori dalla classifica ufficiale (divisioni III e II, il centro della lega; per Master+ la classifica Master) e alcune loro partite Ranked Solo/Duo recenti. Ogni partita conta tutti e 10 i partecipanti. ',
           'Utile per capire cosa ti separa dalla lega successiva.'),
         p(`Riferimento attuale: ${bench.label === 'La tua lobby' || filters.bench === 'lobby' ? 'la tua lobby' : bench.label || '–'} · ${bench.matches || 0} partite · prestazioni per ruolo: ${roleSizes || '–'}`
           + (filters.bench !== 'lobby' && DATA.benchmarkDate ? ` · campione raccolto il ${new Date(DATA.benchmarkDate).toLocaleDateString('it-IT')}` : '') + '.')),
@@ -1531,8 +1862,16 @@
         p(DATA.season ? `Per questo account: ${DATA.season.games} partite dal ${new Date(DATA.season.start).toLocaleDateString('it-IT', { dateStyle: 'long' })}. `
           + 'Con "Tutto lo storico" vedi anche le stagioni precedenti in archivio.' : 'Questo account non ha ancora partite Ranked Solo/Duo nella stagione in corso.')),
       section('Punteggio partita e costanza',
-        p(strong('Punteggio partita'), ': la media degli 8 assi in quella singola partita (servono almeno 6 assi disponibili). È il modo più rapido per capire se hai giocato bene indipendentemente dal risultato.'),
-        p(strong('Costanza'), ': la deviazione standard dei punteggi partita. ±10 indica prestazioni regolari; ±20 o più indica partite molto alte alternate a partite molto basse.')),
+        p(strong('Punteggio partita'), ': tutti i parametri di quella partita insieme (servono almeno 6 parametri disponibili). Si fa la media dei loro punteggi e la si confronta con la stessa media calcolata sulle partite del riferimento: ',
+          '70 significa che quella partita è stata migliore del 70% delle partite del riferimento nello stesso ruolo. È il modo più rapido per capire se hai giocato bene indipendentemente dal risultato.'),
+        p(strong('Costanza'), ': la deviazione standard dei punteggi partita. Come termine di paragone, le partite di tutto il riferimento messe insieme hanno circa ±29: più sei sotto, più sei regolare; intorno a ±30 alterni partite molto alte e molto basse.')),
+      section('Il tuo livello',
+        p('La ', strong('lega più vicina'), ' è quella in cui saresti il giocatore tipico. Per ogni lega si calcola il punteggio che avresti se le tue partite della stagione fossero confrontate con i giocatori di quella lega, nello stesso ruolo: salendo di lega il punteggio scende, e la lega più vicina è quella in cui arriva a 50.'),
+        p('Si usano solo i parametri che ', strong('cambiano davvero da una lega all\'altra'), ' nel tuo ruolo, scelti in base ai dati delle leghe (soprattutto CS/min e CS a 10 minuti; per i Support visione e partecipazione alle uccisioni). ',
+          'KDA, morti, danni e danni agli obiettivi restano quasi uguali da Iron a Master+, perché ogni uccisione è la morte di qualcun altro: confrontarli con un\'altra lega non dice nulla sul livello.'),
+        p(strong('Intervallo probabile'), ': ricampionando le tue partite 300 volte, la stima cade in questo intervallo 8 volte su 10. ',
+          strong('Sopra / sotto il tuo rank'), ': solo se tutto l\'intervallo sta sopra (o sotto) il tuo rank attuale; altrimenti sei "in linea".'),
+        p('La stima guarda i numeri, non le decisioni: chi gioca bene la mappa o fa le scelte giuste negli scontri può avere un rank più alto delle sue statistiche.')),
       section('Cosa incide sulle tue vittorie',
         p('Per ogni parametro le tue partite vengono divise in due metà rispetto alla tua mediana (quelle esattamente sulla mediana sono escluse) e si confronta il win rate delle due metà. Più è grande la differenza, più quel parametro accompagna le tue vittorie.'),
         p(strong('Attenzione'), ': è una correlazione, non una causa. Gold, kill participation e danni crescono anche perché si sta vincendo. ',
@@ -1568,11 +1907,13 @@
         p('Le linee nel tempo sono medie mobili su 10 partite della stessa coda: ogni punto è la media delle ultime 10 partite Solo (o Duo) fino a quella data. ',
           'Remake (sotto i 5 minuti) esclusi ovunque.')),
     ];
+    const role = mainRole(applyFilters());
     const axes = AXES.map((a) => el('section', {}, el('h3', {}, icon(a.key), document.createTextNode(`${a.axis} — ${a.label}`)),
+      p(a.what),
       p(strong('Formula: '), a.formula, '.'),
-      p(strong('Dati Riot: '), code(a.fields)),
       p(a.meaning),
-      p(strong('Come migliorare: '), a.tip)));
+      p(strong('Come migliorare: '), tipsFor(a, role)[0]),
+      p(el('button', { type: 'button', class: 'link-btn', text: 'Scheda completa, con il tuo livello e tutti i consigli →', onclick: () => openSheet(a) }))));
     $('guide').replaceChildren(...intro, el('section', { class: 'wide' }, el('h3', { text: 'Gli 8 parametri del radar' })), ...axes);
   }
 
@@ -1725,6 +2066,7 @@
     const gs = applyFilters();
     $('f-count').textContent = `${gs.length} partite Ranked Solo/Duo nel filtro`;
     renderTiles(gs);
+    renderLevel();
     renderSkills(gs);
     renderScoreTrend(gs);
     renderImpact(gs);
@@ -1765,7 +2107,14 @@
   function openAccountWindow(slug) {
     window.open(`${location.href.split('#')[0]}#${slug}`, 'lol-' + slug, 'popup,width=1340,height=920');
   }
-  window.addEventListener('hashchange', () => boot(decodeURIComponent(location.hash.slice(1))));
+  // Solo i nomi degli account cambiano account: un link interno come #guida non deve riportare al primo
+  window.addEventListener('hashchange', () => {
+    const slug = decodeURIComponent(location.hash.slice(1));
+    if (ALL.accounts.some((a) => a.slug === slug)) boot(slug);
+  });
+  // Scheda di un parametro: si chiude con la X, con Esc (nativo di <dialog>) o cliccando fuori
+  $('sheet-close').addEventListener('click', () => $('sheet').close());
+  $('sheet').addEventListener('click', (e) => { if (e.target === $('sheet')) $('sheet').close(); });
   boot(decodeURIComponent(location.hash.slice(1)));
   let resizeTimer;
   window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });

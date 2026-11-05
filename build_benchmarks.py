@@ -7,20 +7,22 @@ distribuzione dei parametri di gioco (KDA, CS/min, danni/min, visione...) usata 
 dashboard per il radar delle abilita' e i confronti.
 
 Come funziona:
-  1. League-V4 fornisce i giocatori di una divisione (si usa la II, il centro della lega;
-     per Master+ la classifica Master).
-  2. Si prendono a caso alcuni di questi giocatori e una o due delle loro partite Ranked recenti.
+  1. League-V4 fornisce i giocatori delle divisioni III e II, il centro della lega
+     (per Master+ la classifica Master).
+  2. Si prendono a caso alcuni di questi giocatori e alcune delle loro partite Ranked Solo/Duo recenti.
   3. Ogni partita contribuisce con tutti e 10 i partecipanti: il matchmaking li mette allo
      stesso livello di MMR, quindi rappresentano bene quella lega.
 
-Non serve rieseguirlo ogni giorno: una volta per patch (o al mese) basta. Le partite scaricate
-restano in .cache_benchmark/, quindi rieseguirlo costa solo le partite nuove.
+Con 250 partite per lega ogni ruolo ha circa 500 prestazioni di riferimento.
+
+Non serve rieseguirlo ogni giorno: una volta per patch (o al mese) basta. Le partite gia' usate
+restano nel campione e in .cache_benchmark/, quindi rieseguirlo scarica solo quelle che mancano.
 
 Gli ID delle partite usate per ogni lega vengono salvati nel file: con --recompute le
 distribuzioni si ricalcolano dalla cache, senza chiamate API (utile se cambiano le metriche).
 
 Uso:
-    python build_benchmarks.py                       # tutte le leghe, 40 partite ciascuna
+    python build_benchmarks.py                       # tutte le leghe, 250 partite ciascuna
     python build_benchmarks.py --tiers GOLD PLATINUM --matches-per-tier 60
     python build_benchmarks.py --recompute           # ricalcola dalle partite gia' scaricate
 """
@@ -40,23 +42,30 @@ from lol_metrics import build_distribution, participant_metrics
 TIERS = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER"]  # MASTER = Master+
 PLATFORM_BY_REGION = {"europe": "euw1", "americas": "na1", "asia": "kr", "sea": "oc1"}
 BENCHMARK_CACHE = SCRIPT_DIR / ".cache_benchmark"
-MATCHES_PER_PLAYER = 2
+MATCHES_PER_PLAYER = 3
+DEFAULT_MATCHES_PER_TIER = 250
+DIVISIONS = ("III", "II")   # il centro della lega: tra la divisione III e la II
 
 
 def sample_players(client: RiotClient, platform: str, tier: str) -> list[str]:
+    """Giocatori della lega in ordine casuale, alternando le divisioni III e II."""
     if tier == "MASTER":
-        entries = client.get_master_league(platform).get("entries", [])
+        pools = [client.get_master_league(platform).get("entries", [])]
     else:
-        entries = client.get_league_entries(platform, tier, "II")
-    puuids = [e["puuid"] for e in entries if e.get("puuid")]
-    random.shuffle(puuids)
-    return puuids
+        pools = [client.get_league_entries(platform, tier, division) for division in DIVISIONS]
+    shuffled = []
+    for entries in pools:
+        puuids = [e["puuid"] for e in entries if e.get("puuid")]
+        random.shuffle(puuids)
+        shuffled.append(puuids)
+    return [p for group in zip(*shuffled) for p in group] if len(shuffled) > 1 else shuffled[0]
 
 
-def build_tier(client: RiotClient, platform: str, tier: str, target: int) -> dict | None:
-    players = sample_players(client, platform, tier)
-    print(f"\n{tier}: {len(players)} giocatori in classifica, cerco {target} partite...")
-    match_ids: list[str] = []
+def build_tier(client: RiotClient, platform: str, tier: str, target: int, previous: list[str]) -> dict | None:
+    # Le partite gia' nel campione (e in cache) restano: si scaricano solo quelle che mancano
+    match_ids = [m for m in previous if (BENCHMARK_CACHE / f"{m}.json").is_file()][:target]
+    players = sample_players(client, platform, tier) if len(match_ids) < target else []
+    print(f"\n{tier}: {len(match_ids)} partite gia' nel campione, ne cerco altre {max(0, target - len(match_ids))}...")
     for puuid in players:
         if len(match_ids) >= target:
             break
@@ -114,7 +123,8 @@ def main() -> int:
     load_dotenv(SCRIPT_DIR / ".env")
     parser = argparse.ArgumentParser(description="Costruisce i benchmark per lega e ruolo (data/benchmarks.json).")
     parser.add_argument("--tiers", nargs="+", choices=TIERS, default=TIERS, help="Leghe da calcolare (default: tutte)")
-    parser.add_argument("--matches-per-tier", type=int, default=40, help="Partite per lega (default: 40)")
+    parser.add_argument("--matches-per-tier", type=int, default=DEFAULT_MATCHES_PER_TIER,
+                        help=f"Partite per lega (default: {DEFAULT_MATCHES_PER_TIER})")
     parser.add_argument("--region", choices=REGIONS, default=os.environ.get("RIOT_REGION", "europe"))
     parser.add_argument("--platform", help="Piattaforma per League-V4, es. euw1 (default: dedotta dalla regione)")
     parser.add_argument("--api-key", help="Riot API Key (in alternativa: RIOT_API_KEY nel .env)")
@@ -141,7 +151,8 @@ def main() -> int:
     data.setdefault("tiers", {})
     try:
         for tier in args.tiers:
-            result = build_tier(client, platform, tier, args.matches_per_tier)
+            previous = data["tiers"].get(tier, {}).get("matchIds", [])
+            result = build_tier(client, platform, tier, args.matches_per_tier, previous)
             if result:
                 data["tiers"][tier] = result
                 data.update(generatedAt=datetime.now().isoformat(timespec="seconds"), platform=platform)
