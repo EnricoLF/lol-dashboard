@@ -1,0 +1,126 @@
+{
+  "duroduro bwc#dur1": [
+    {
+      "date": "2026-11-02",
+      "tier": "SILVER",
+      "rank": "II",
+      "lp": 38,
+      "wins": 132,
+      "losses": 149
+    },
+    {
+      "date": "2026-11-04",
+      "tier": "SILVER",
+      "rank": "III",
+      "lp": 96,
+      "wins": 136,
+      "losses": 156
+    },
+    {
+      "date": "2026-11-04",
+      "time": "2026-11-04T22:56:45+01:00",
+      "seen": "2026-11-04T22:57:56+01:00",
+      "tier": "SILVER",
+      "rank": "III",
+      "lp": 35,
+      "wins": 136,
+      "losses": 159
+    },
+    {
+      "date": "2026-11-05",
+      "time": "2026-11-05T12:59:53+01:00",
+      "seen": "2026-11-05T13:01:17+01:00",
+      "tier": "SILVER",
+      "rank": "III",
+      "lp": 12,
+      "wins": 137,
+      "losses": 161
+    }
+  ],
+  "iwup#euw": [
+    {
+      "date": "2026-11-02",
+      "tier": "SILVER",
+      "rank": "IV",
+      "lp": 89,
+      "wins": 110,
+      "losses": 131
+    },
+    {
+      "date": "2026-11-04",
+      "tier": "SILVER",
+      "rank": "IV",
+      "lp": 90,
+      "wins": 112,
+      "losses": 133
+    },
+    {
+      "date": "2026-11-04",
+      "time": "2026-11-04T22:56:45+01:00",
+      "seen": "2026-11-04T22:57:56+01:00",
+      "tier": "SILVER",
+      "rank": "IV",
+      "lp": 70,
+      "wins": 112,
+      "losses": 134
+    },
+    {
+      "date": "2026-11-05",
+      "time": "2026-11-05T12:59:54+01:00",
+      "seen": "2026-11-05T13:01:18+01:00",
+      "tier": "SILVER",
+      "rank": "IV",
+      "lp": 47,
+      "wins": 113,
+      "losses": 136
+    }
+  ],
+  "salv1 bwc#dur1": [
+    {
+      "date": "2026-11-02",
+      "tier": "SILVER",
+      "rank": "IV",
+      "lp": 87,
+      "wins": 43,
+      "losses": 45
+    },
+    {
+      "date": "2026-11-04",
+      "tier": "SILVER",
+      "rank": "III",
+      "lp": 42,
+      "wins": 48,
+      "losses": 48,
+      "seen": "2026-11-04T22:57:57+01:00"
+    },
+    {
+      "date": "2026-11-05",
+      "time": "2026-11-05T12:59:55+01:00",
+      "seen": "2026-11-05T13:01:18+01:00",
+      "tier": "SILVER",
+      "rank": "III",
+      "lp": 8,
+      "wins": 49,
+      "losses": 51
+    }
+  ],
+  "coy1#dr1": [
+    {
+      "date": "2026-11-02",
+      "tier": "GOLD",
+      "rank": "II",
+      "lp": 7,
+      "wins": 20,
+      "losses": 19
+    },
+    {
+      "date": "2026-11-04",
+      "tier": "GOLD",
+      "rank": "I",
+      "lp": 27,
+      "wins": 25,
+      "losses": 20,
+      "seen": "2026-11-05T13:01:18+01:00"
+    }
+  ]
+}
