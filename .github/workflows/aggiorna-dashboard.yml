@@ -1,0 +1,90 @@
+# Aggiorna la dashboard ogni 15 minuti e la pubblica su GitHub Pages.
+#
+# Il codice sta nel ramo main. Rank, PUUID, medie per lega e partite scaricate stanno nel ramo "data":
+# a ogni esecuzione vengono letti da li', aggiornati e salvati di nuovo, cosi' lo storico non si perde.
+#
+# Configurazione (Settings > Secrets and variables > Actions):
+#   secret    RIOT_API_KEY  la Personal API Key di Riot
+#   variabile RIOT_IDS      es. "Nome#TAG; Altro#TAG"
+#   variabile RIOT_REGION   es. "europe"
+name: Aggiorna dashboard
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # GitHub non garantisce l'orario: le esecuzioni possono slittare di qualche minuto
+  workflow_dispatch:          # pulsante "Run workflow" per aggiornare subito
+
+concurrency:
+  group: aggiorna-dashboard
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # salvare i dati nel ramo "data"
+  pages: write      # pubblicare la pagina
+  id-token: write
+
+jobs:
+  aggiorna:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      TZ: Europe/Rome   # date e orari della dashboard in ora italiana
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Codice
+        uses: actions/checkout@v4
+
+      - name: Dati salvati (ramo data)
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: store
+
+      - name: Collega i dati alle cartelle usate dallo script
+        run: |
+          mkdir -p store/data store/.cache_matches
+          ln -s store/data data
+          ln -s store/.cache_matches .cache_matches
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Aggiorna partite e rank, genera le pagine
+        id: run
+        env:
+          RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+          RIOT_IDS: ${{ vars.RIOT_IDS }}
+          RIOT_REGION: ${{ vars.RIOT_REGION }}
+        run: |
+          set +e
+          python lol_dashboard.py --output-dir site
+          code=$?
+          # 2 = qualche account non aggiornato (es. Riot non raggiungibile): la pagina usa i dati gia' salvati
+          # e mostra l'errore, quindi si pubblica lo stesso. 1 = nessuna pagina generata.
+          if [ $code -eq 2 ]; then echo "::warning::Aggiornamento parziale: la dashboard usa i dati gia' salvati."; fi
+          [ $code -ne 1 ]
+
+      - name: Salva i dati nel ramo data
+        working-directory: store
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "Nessun dato nuovo"; exit 0; fi
+          git commit -q -m "Dati $(date '+%Y-%m-%d %H:%M')"
+          git push -q
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Pubblica su GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

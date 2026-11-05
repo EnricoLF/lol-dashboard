@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>LoL Ranked Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -689,7 +690,8 @@
         onclick: () => openAccountWindow(a.slug) }))),
       el('a', { href: 'index.html', text: 'Riepilogo account' }));
     $('footer').textContent = `Dati: Riot Games API (Match-V5, League-V4) · regione ${DATA.region} · soglia partner duo ${pct(DATA.threshold, 0)}. `
-      + 'Non approvato da Riot Games.';
+      + 'Questa dashboard non è approvata da Riot Games e non riflette le opinioni di Riot Games o di chiunque sia ufficialmente coinvolto nella produzione o nella gestione delle proprietà di Riot Games. '
+      + 'Riot Games e tutte le proprietà associate sono marchi o marchi registrati di Riot Games, Inc.';
   }
 
   // ---------------------------------------------------------------- barra riepilogo
