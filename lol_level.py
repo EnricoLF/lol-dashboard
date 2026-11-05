@@ -156,15 +156,36 @@ def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: 
     tail = (1 - INTERVAL) / 2
     low, high = samples[int(tail * BOOTSTRAP)], samples[int((1 - tail) * BOOTSTRAP) - 1]
 
+    # Seconda misura: quanti compagni di squadra superi (tutti gli 8 parametri). Tra compagni il risultato
+    # e' lo stesso, quindi non dipende da vittoria o sconfitta; 50% = giochi come i giocatori del tuo MMR.
+    team = [r for r in rows if r.get("team") is not None]
+    team_info = None
+    if len(team) >= MIN_GAMES:
+        beats = [r["team"] for r in team]
+        rng_team = random.Random(2027)
+        boot = sorted(sum(rng_team.choice(beats) for _ in beats) / len(beats) for _ in range(BOOTSTRAP))
+        team_low, team_high = boot[int(tail * BOOTSTRAP)], boot[int((1 - tail) * BOOTSTRAP) - 1]
+        team_info = {
+            "teamGames": len(team),
+            "teamScore": round(sum(beats) / len(beats) * 100, 1),
+            "teamLow": round(team_low * 100, 1),
+            "teamHigh": round(team_high * 100, 1),
+            "teamRank": round(sum(r["teamRank"] for r in team) / len(team), 2),
+            "teamBest": round(sum(r["teamRank"] == 1 for r in team) / len(team), 3),
+            "teamSignal": 1 if team_low > 0.5 else -1 if team_high < 0.5 else 0,
+        }
+
+    # Giudizio: le due misure si sommano. Farm sopra il rank = +1, sotto = -1; superi piu' (o meno) della
+    # meta' dei compagni in modo netto (tutto l'intervallo 80%) = +1 (o -1). Totale > 0 sopra, < 0 sotto.
     current = rank_position(rank)
-    if current is None:
+    farm_signal = None
+    if current is not None:
+        farm_signal = 1 if low > current + 0.25 else -1 if high < current - 0.25 else 0
+    if farm_signal is None:
         verdict = None
-    elif low > current + 0.25:
-        verdict = "above"
-    elif high < current - 0.25:
-        verdict = "below"
     else:
-        verdict = "inline"
+        total = farm_signal + (team_info["teamSignal"] if team_info else 0)
+        verdict = "above" if total > 0 else "below" if total < 0 else "inline"
 
     # Livello di ogni parametro che distingue le leghe nel ruolo principale
     axis_levels = {}
@@ -195,6 +216,8 @@ def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: 
         "rankPosition": None if current is None else round(current, 2),
         "gap": None if current is None else round(position - current, 2),
         "verdict": verdict,
+        "farmSignal": farm_signal,
+        **(team_info or {}),
         "curve": {t: round(v, 1) for t, v in zip(TIER_ORDER, curve)},
         "axesByRole": {role: list(keys) for role, keys in axes_by_role.items()},
         "axisLevels": axis_levels,

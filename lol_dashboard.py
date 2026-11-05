@@ -55,7 +55,7 @@ from lol_duo_analyzer import (
     parse_riot_id,
 )
 from lol_level import estimate_level
-from lol_metrics import PING_TYPES, build_distribution, cs_at_10, participant_metrics, ping_counts
+from lol_metrics import PING_TYPES, build_distribution, cs_at_10, participant_metrics, ping_counts, team_positions
 
 CACHE_DIR = SCRIPT_DIR / ".cache_matches"
 ENV_FILE = SCRIPT_DIR / ".env"
@@ -529,6 +529,12 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
                   if p.get("puuid") != puuid and (m := participant_metrics(match, p))]
     lobby = {"label": "La tua lobby", "matches": len(matches), "roles": build_distribution(lobby_rows)}
 
+    # Posizione nella squadra (1 = il migliore dei 5), rispetto alle distribuzioni della lobby
+    team_pos = team_positions(matches, puuid, lobby["roles"])
+    for game in games:
+        if game["id"] in team_pos:
+            game["teamRank"] = team_pos[game["id"]]["rank"]
+
     history = lp_history.get(key, [])
     end_times = {m["metadata"].get("matchId"): m["info"].get("gameEndTimestamp") for m in matches}
     lp_by_match, lp_blocks = lp_changes(history, games, end_times)
@@ -548,9 +554,13 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
     level = None
     for scope, pool in (("season", season_games), ("recent", games[:100])):
         level_ids = {g["id"] for g in pool}
-        level_rows = [row for m in matches if m["metadata"].get("matchId") in level_ids
-                      for p in m["info"]["participants"] if p.get("puuid") == puuid
-                      if (row := participant_metrics(m, p))]
+        level_rows = []
+        for m in matches:
+            match_id = m["metadata"].get("matchId")
+            me = next((p for p in m["info"]["participants"] if p.get("puuid") == puuid), None)
+            if match_id in level_ids and me and (row := participant_metrics(m, me)):
+                position = team_pos.get(match_id)
+                level_rows.append({**row, "team": position and position["beat"], "teamRank": position and position["rank"]})
         level = estimate_level(level_rows, tiers, history[-1] if history else None, lobby["roles"])
         if level:
             level["scope"] = scope
@@ -589,7 +599,7 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
         "status": status,
         "rank": history[-1] if history else None,
         "season": bool(season_games),
-        "level": level and {k: level[k] for k in ("label", "lowLabel", "highLabel", "verdict", "gap", "tier", "scope", "role", "games")},
+        "level": level and {k: level.get(k) for k in ("label", "lowLabel", "highLabel", "verdict", "gap", "tier", "scope", "role", "games", "teamRank", "teamScore")},
         "games": len(shown),
         "winRate": sum(g["win"] for g in shown) / len(shown),
         "recentWinRate": sum(g["win"] for g in recent) / len(recent),

@@ -136,6 +136,41 @@ def raw_game_score(row: dict, role_stats: dict) -> float | None:
     return sum(scores) / len(scores) if len(scores) >= MIN_SCORED_AXES else None
 
 
+def game_score(row: dict | None, roles: dict) -> float | None:
+    """Punteggio partita calibrato (0-100) rispetto a un riferimento {ruolo: distribuzioni}."""
+    if not row:
+        return None
+    role_stats = roles.get(row["role"], {})
+    raw = raw_game_score(row, role_stats)
+    if raw is None:
+        return None
+    return percentile_of(raw, role_stats["score"]["q"]) if "score" in role_stats else raw
+
+
+def team_positions(matches: list[dict], puuid: str, roles: dict) -> dict[str, dict]:
+    """Posizione nella propria squadra, partita per partita: {matchId: {"rank": 1-5, "beat": 0-1}}.
+
+    I 5 compagni vengono ordinati per punteggio partita (tutti i parametri, ognuno confrontato con il
+    proprio ruolo). Tra compagni il risultato e' lo stesso, quindi vittoria o sconfitta non falsano il
+    confronto. "beat" e' la quota di compagni che hai superato (i pareggi valgono mezzo).
+    """
+    result = {}
+    for match in matches:
+        participants = match.get("info", {}).get("participants", [])
+        me = next((p for p in participants if p.get("puuid") == puuid), None)
+        if me is None:
+            continue
+        team = [p for p in participants if p.get("teamId") == me.get("teamId")]
+        scores = {p.get("puuid"): game_score(participant_metrics(match, p), roles) for p in team}
+        if len(scores) != 5 or None in scores.values():
+            continue   # remake, ruoli mancanti o parametri insufficienti
+        mine = scores.pop(puuid)
+        higher = sum(s > mine for s in scores.values())
+        ties = sum(s == mine for s in scores.values())
+        result[match["metadata"]["matchId"]] = {"rank": 1 + higher, "beat": (4 - higher - ties / 2) / 4}
+    return result
+
+
 def build_distribution(rows: list[dict]) -> dict:
     """{ruolo: {metrica: {"q": quantili, "mean": media}, "n": campioni}} dalle righe di participant_metrics.
 

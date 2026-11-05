@@ -422,6 +422,15 @@
     </article>
 
     <article class="card wide">
+      <h2>Posizione nella squadra</h2>
+      <p class="sub" id="team-sub"></p>
+      <div class="comm">
+        <div><h3 class="mini">Rispetto ai tuoi compagni</h3><div class="stats" id="team-stats"></div></div>
+        <div><h3 class="mini">Win rate per posizione (1° = il migliore dei 5)</h3><div class="bars" id="team-bars"></div></div>
+      </div>
+    </article>
+
+    <article class="card wide">
       <div class="card-head">
         <div>
           <h2>Profilo abilità</h2>
@@ -1450,11 +1459,19 @@
       + `${others ? ` (le altre ${others} partite, in altri ruoli, non contano)` : ''}. Non dipende dai filtri.`;
     const rank = DATA.rank && TIERS.includes(DATA.rank.tier) ? DATA.rank : null;
     const VERDICT = {
-      above: ['good', 'Sopra il tuo rank', `Le tue prestazioni sono circa ${divisionsText(lv.gap)} sopra il tuo rank: se le mantieni, è probabile che tu salga.`],
-      inline: ['', 'In linea con il rank', 'Il tuo rank rispecchia le tue prestazioni: per salire devi migliorare nei parametri qui sotto.'],
-      below: ['bad', 'Sotto il tuo rank', `Le tue prestazioni misurabili sono circa ${divisionsText(lv.gap)} sotto il tuo rank. Può succedere se giochi spesso in duo con giocatori più forti, se stai provando ruoli o campioni nuovi, o se il tuo punto di forza non si vede nei numeri (decisioni, gestione della mappa).`],
+      above: ['good', 'Sopra il tuo rank', 'Se mantieni questo livello è probabile che tu salga.'],
+      inline: ['', 'In linea con il rank', 'Per salire devi migliorare nei parametri qui sotto.'],
+      below: ['bad', 'Sotto il tuo rank', 'Può succedere se giochi spesso in duo con giocatori più forti, se stai provando campioni nuovi, o se il tuo punto di forza non si vede nei numeri (decisioni, gestione della mappa).'],
     };
-    const [cls, tag, text] = VERDICT[lv.verdict] || ['', 'Rank non disponibile', 'Senza un rank in Solo/Duo non si può dire se sei sopra o sotto.'];
+    const [cls, tag, conclusion] = VERDICT[lv.verdict] || ['', 'Rank non disponibile', ''];
+    const farmText = lv.farmSignal == null ? 'Senza un rank in Solo/Duo non si può dire se sei sopra o sotto.'
+      : lv.farmSignal > 0 ? `Nel farm giochi circa ${divisionsText(lv.gap)} sopra il tuo rank`
+      : lv.farmSignal < 0 ? `Nel farm giochi circa ${divisionsText(lv.gap)} sotto il tuo rank`
+      : 'Nel farm sei in linea con il tuo rank';
+    const teamText = lv.teamScore == null ? '.'
+      : `; in squadra superi in media il ${fmt(lv.teamScore, 0)}% dei compagni (posizione media ${fmt(lv.teamRank, 1)}° su 5), `
+        + (lv.teamSignal > 0 ? 'più dei giocatori del tuo MMR.' : lv.teamSignal < 0 ? 'meno dei giocatori del tuo MMR.' : 'come i giocatori del tuo MMR.');
+    const text = `${farmText}${lv.farmSignal == null ? '' : teamText} ${conclusion}`.trim();
 
     // Scala delle leghe: rank attuale sopra, livello stimato (con intervallo probabile) sotto
     const scale = el('div', { class: 'lvl-scale' });
@@ -1510,7 +1527,9 @@
         el('h3', { class: 'mini', text: 'Il tuo punteggio contro ogni lega' }), curve,
         el('div', { class: 'stats', style: 'margin-top:12px' },
           stat(ownTier ? `Contro ${iGli(lv.ownTier)} ${ownTier} (la tua lega)` : 'Contro la tua lega', scoreSpan(lv.scoreOwnTier), 'Punteggio medio delle tue partite, tutti gli 8 parametri'),
-          stat('Contro la tua lobby (MMR simile)', scoreSpan(lv.scoreLobby), 'Gli altri 9 giocatori delle tue partite: il confronto più diretto con il tuo MMR')))),
+          stat('Contro la tua lobby (MMR simile)', scoreSpan(lv.scoreLobby), 'Gli altri 9 giocatori delle tue partite: il confronto più diretto con il tuo MMR'),
+          lv.teamScore == null ? null : stat('Compagni di squadra superati', el('span', { class: scoreTone(lv.teamScore), text: `${fmt(lv.teamScore, 0)}% · ${fmt(lv.teamRank, 1)}° su 5` }),
+            'Quota di compagni con un punteggio partita più basso del tuo (tutti gli 8 parametri): 50% = giochi come loro')))),
       levelHowTo(lv, rank));
   }
 
@@ -1536,10 +1555,17 @@
       : cross >= 0 ? `scende sotto 50 tra ${tierName(curve[cross][0])} (${fmt(curve[cross][1], 0)}) e ${tierName(curve[cross + 1][0])} (${fmt(curve[cross + 1][1], 0)}): la stima è ${lv.label}`
       : `passa per 50 vicino a ${lv.label}`;
     const others = lv.totalGames - lv.games;
-    const verdictText = !rank || lv.rankPosition == null ? 'Senza un rank in Solo/Duo non si può confrontare.'
-      : lv.verdict === 'above' ? `il tuo rank (${rankName(rank)}) è sotto tutto l'intervallo: per questo il giudizio è "sopra il tuo rank".`
-      : lv.verdict === 'below' ? `il tuo rank (${rankName(rank)}) è sopra tutto l'intervallo: per questo il giudizio è "sotto il tuo rank".`
-      : `il tuo rank (${rankName(rank)}) cade dentro l'intervallo (o a meno di una divisione): per questo il giudizio è "in linea".`;
+    const signed1 = (x) => (x > 0 ? '+1' : x < 0 ? '−1' : '0');
+    const farmPart = lv.farmSignal == null ? null
+      : lv.farmSignal > 0 ? `il tuo rank (${rankName(rank)}) è sotto tutto l'intervallo del farm (+1)`
+      : lv.farmSignal < 0 ? `il tuo rank (${rankName(rank)}) è sopra tutto l'intervallo del farm (−1)`
+      : `il tuo rank (${rankName(rank)}) cade dentro l'intervallo del farm, o a meno di una divisione (0)`;
+    const teamPart = lv.teamScore == null ? null
+      : `i compagni superati sono ${fmt(lv.teamLow, 0)}-${fmt(lv.teamHigh, 0)}% 8 volte su 10, quindi ${lv.teamSignal > 0 ? 'sempre sopra il 50%' : lv.teamSignal < 0 ? 'sempre sotto il 50%' : 'a cavallo del 50%'} (${signed1(lv.teamSignal)})`;
+    const total = (lv.farmSignal || 0) + (lv.teamSignal || 0);
+    const verdictText = farmPart == null ? 'Senza un rank in Solo/Duo non si può confrontare.'
+      : `${farmPart}${teamPart ? `; ${teamPart}` : ''}. Somma ${total > 0 ? '+' : ''}${total === 0 ? '0' : String(total).replace('-', '−')}: `
+        + `${total > 0 ? 'sopra il tuo rank' : total < 0 ? 'sotto il tuo rank' : 'in linea con il rank'}.`;
     return el('details', { class: 'lvl-how', open: '' },
       el('summary', { text: 'Come si calcola questo livello' }),
       el('ol', {},
@@ -1553,8 +1579,36 @@
           LEVEL_TIERS.map((t) => `${tierName(t)} ${fmt(lv.curve[t], 0)}`).join(', '), ' (lo vedi anche nel grafico qui sopra).'),
         li(b('Lega più vicina: '), `è quella in cui saresti il giocatore tipico, cioè dove il punteggio vale 50. Il tuo punteggio ${crossText}.`),
         li(b('Incertezza: '), `rifacendo il calcolo 300 volte su campioni diversi delle tue partite, il risultato cade tra ${lv.lowLabel} e ${lv.highLabel} 8 volte su 10.`),
-        li(b('Giudizio: '), verdictText)),
+        lv.teamScore == null ? null : li(b('Confronto con i compagni: '), `in ogni partita i 5 giocatori della tua squadra vengono ordinati per punteggio partita, che usa tutti gli 8 parametri del radar (ognuno confrontato con il proprio ruolo). `,
+          `Tra compagni il risultato è lo stesso, quindi vittoria o sconfitta non falsano il confronto. Superi in media il ${fmt(lv.teamScore, 0)}% dei compagni: 50% vuol dire giocare come i giocatori del tuo MMR.`),
+        li(b('Giudizio: '), 'il farm e il confronto con i compagni valgono un punto ciascuno (+1 sopra, −1 sotto, 0 in linea) e si sommano: ', verdictText)),
       el('p', { class: 'sub', style: 'margin:8px 0 0', text: 'Non misura decisioni, gestione della mappa e comunicazione, che contano ma non si leggono nelle statistiche di Riot.' }));
+  }
+
+  // ---------------------------------------------------------------- posizione nella squadra (segue i filtri)
+  // teamRank e' calcolato dallo script: i 5 compagni ordinati per punteggio partita, ognuno nel suo ruolo
+  function renderTeam(gs) {
+    const tg = gs.filter((g) => g.teamRank != null);
+    $('team-sub').textContent = `In ogni partita i 5 giocatori della tua squadra vengono ordinati per punteggio partita: tutti gli 8 parametri del radar, ognuno confrontato con il proprio ruolo. `
+      + `Tra compagni il risultato è lo stesso, quindi vittoria o sconfitta non falsano il confronto. ${tg.length} partite nel filtro.`;
+    if (tg.length < MIN_GAMES) {
+      $('team-stats').replaceChildren(el('p', { class: 'empty', text: `Servono almeno ${MIN_GAMES} partite nel filtro corrente.` }));
+      $('team-bars').replaceChildren();
+      return;
+    }
+    const wins = tg.filter((g) => g.win), losses = tg.filter((g) => !g.win);
+    const avgRank = avg(tg.map((g) => g.teamRank));
+    const beat = avg(tg.map((g) => (5 - g.teamRank) / 4));
+    const best = share(tg, (g) => g.teamRank === 1);
+    const stat = (label, value, cls) => el('div', { class: 'stat' }, el('span', { text: label }), el('span', { class: cls || '', text: value }));
+    $('team-stats').replaceChildren(
+      stat('Posizione media', `${fmt(avgRank, 1)}° su 5`, avgRank < 3 ? 'good' : avgRank > 3 ? 'bad' : ''),
+      stat('Compagni superati', pct(beat, 0), scoreTone(beat * 100)),
+      stat('Migliore della squadra (atteso 20%)', pct(best, 0), best > 0.2 ? 'good' : best < 0.2 ? 'bad' : ''),
+      stat('Posizione nelle vittorie / sconfitte', wins.length && losses.length ? `${fmt(avg(wins.map((g) => g.teamRank)), 1)}° / ${fmt(avg(losses.map((g) => g.teamRank)), 1)}°` : '–'),
+      stat('Sconfitte da migliore della squadra', `${losses.filter((g) => g.teamRank === 1).length} su ${losses.length}`));
+    barList($('team-bars'), [1, 2, 3, 4, 5].map((r) => ({ label: `${r}° in squadra`, games: tg.filter((g) => g.teamRank === r) })),
+      'Nessuna partita nel filtro corrente.');
   }
 
   // ---------------------------------------------------------------- scheda dettagliata di un parametro
@@ -1930,8 +1984,11 @@
           'Per ogni lega si calcola il punteggio che avresti se quelle partite fossero confrontate con i giocatori di quella lega nello stesso ruolo: salendo di lega il punteggio scende, e la lega più vicina è quella in cui arriva a 50.'),
         p('Si usano solo i parametri che ', strong('cambiano davvero da una lega all\'altra'), ' nel tuo ruolo, scelti in base ai dati delle leghe (soprattutto CS/min e CS a 10 minuti; per i Support visione e partecipazione alle uccisioni). ',
           'KDA, morti, danni e danni agli obiettivi restano quasi uguali da Iron a Master+, perché ogni uccisione è la morte di qualcun altro: confrontarli con un\'altra lega non dice nulla sul livello.'),
-        p(strong('Intervallo probabile'), ': ricampionando le tue partite 300 volte, la stima cade in questo intervallo 8 volte su 10. ',
-          strong('Sopra / sotto il tuo rank'), ': solo se tutto l\'intervallo sta sopra (o sotto) il tuo rank attuale; altrimenti sei "in linea".'),
+        p(strong('Intervallo probabile'), ': ricampionando le tue partite 300 volte, la stima cade in questo intervallo 8 volte su 10.'),
+        p(strong('Posizione nella squadra'), ': in ogni partita i 5 compagni vengono ordinati per punteggio partita, che usa tutti gli 8 parametri del radar (ognuno nel proprio ruolo). ',
+          'Tra compagni il risultato è lo stesso, quindi una sconfitta non abbassa la tua posizione se i compagni hanno fatto peggio di te. Superare più del 50% dei compagni vuol dire giocare meglio dei giocatori del tuo MMR.'),
+        p(strong('Sopra / sotto il tuo rank'), ': due misure, un punto ciascuna. Farm: +1 se tutto l\'intervallo sta sopra il tuo rank, −1 se sta tutto sotto, 0 altrimenti. ',
+          'Compagni: +1 se superi più del 50% dei compagni anche nel caso peggiore dell\'intervallo, −1 se meno del 50% anche nel caso migliore, 0 altrimenti. Somma positiva = sopra, negativa = sotto, zero = in linea.'),
         p('La stima guarda i numeri, non le decisioni: chi gioca bene la mappa o fa le scelte giuste negli scontri può avere un rank più alto delle sue statistiche.')),
       section('Cosa incide sulle tue vittorie',
         p('Per ogni parametro le tue partite vengono divise in due metà rispetto alla tua mediana (quelle esattamente sulla mediana sono escluse) e si confronta il win rate delle due metà. Più è grande la differenza, più quel parametro accompagna le tue vittorie.'),
@@ -2117,7 +2174,7 @@
   }
   function renderRecent(gs) {
     const rows = gs.slice(-20).reverse().map((g) => ({
-      cells: [dateLabel(g.ts, true), champIcon(g.champ), roleLabel(g.role), g.oppChamp ? champIcon(g.oppChamp) : '–', laneCell(g),
+      cells: [dateLabel(g.ts, true), champIcon(g.champ), roleLabel(g.role), g.oppChamp ? champIcon(g.oppChamp) : '–', laneCell(g), g.teamRank == null ? '–' : el('span', { class: g.teamRank <= 2 ? 'good' : g.teamRank >= 4 ? 'bad' : '', text: `${g.teamRank}°`, title: `${g.teamRank}° su 5 nella tua squadra per punteggio partita` }),
         el('span', { class: 'result' + (g.win ? ' win' : ''), text: g.win ? 'Vittoria' : 'Sconfitta' }), g.lp == null ? '–' : tone(g.lp),
         `${g.k}/${g.d}/${g.a}`, fmt((g.k + g.a) / Math.max(1, g.d), 2), g.score == null ? '–' : fmt(g.score, 0), `${g.cs} (${fmt(g.cs / g.dur, 1)})`,
         pct(g.kp, 0), fmt(g.dmg / g.dur, 0), `${Math.floor(g.dur)}:${String(Math.round((g.dur % 1) * 60)).padStart(2, '0')}`,
@@ -2125,7 +2182,7 @@
     }));
     const host = $('recent');
     if (!rows.length) { host.replaceChildren(el('p', { class: 'empty', text: 'Nessuna partita nel filtro corrente.' })); return; }
-    host.replaceChildren(table(['Data', 'Campione', 'Ruolo', 'Contro', 'Corsia', 'Esito', 'LP', 'K/D/A', 'KDA', 'Punteggio', 'CS (/min)', 'KP', 'Danni/min', 'Durata', 'Coda'], rows, { leftCols: [1, 2, 3, 4, 5, 14] }));
+    host.replaceChildren(table(['Data', 'Campione', 'Ruolo', 'Contro', 'Corsia', 'Squadra', 'Esito', 'LP', 'K/D/A', 'KDA', 'Punteggio', 'CS (/min)', 'KP', 'Danni/min', 'Durata', 'Coda'], rows, { leftCols: [1, 2, 3, 4, 5, 6, 15] }));
   }
 
   // ---------------------------------------------------------------- render
@@ -2135,6 +2192,7 @@
     $('f-count').textContent = `${gs.length} partite Ranked Solo/Duo nel filtro`;
     renderTiles(gs);
     renderLevel();
+    renderTeam(gs);
     renderSkills(gs);
     renderScoreTrend(gs);
     renderImpact(gs);
