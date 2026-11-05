@@ -1425,9 +1425,12 @@
   const axisByKey = (k) => AXES.find((a) => a.key === k);
   // Posizione sulla scala delle leghe (0 = centro di Iron ... 7 = Master+) -> percentuale della barra
   const ladderPct = (p) => `${((Math.min(7.5, Math.max(-0.5, p)) + 0.5) / 8) * 100}%`;
+  // Distanza dal rank: in divisioni fino a 3, poi in leghe (una lega = 4 divisioni)
   const divisionsText = (gap) => {
     const n = Math.round(Math.abs(gap) * 4);
-    return n >= 4 && n % 4 === 0 ? `${n / 4 === 1 ? 'una lega' : `${n / 4} leghe`}` : `${n === 1 ? 'una divisione' : `${n} divisioni`}`;
+    if (n >= 6) return `${Math.round(n / 4)} leghe`;
+    if (n >= 4) return 'una lega';
+    return n === 1 ? 'una divisione' : `${n} divisioni`;
   };
   // Parametri usati per la stima, raggruppati per ruolo: "Top e Mid: CS/min, CS a 10 min"
   function levelAxesText(byRole, roles) {
@@ -1559,14 +1562,16 @@
       const own = DATA.rank && TIERS.includes(DATA.rank.tier) ? Math.min(7, TIERS.indexOf(DATA.rank.tier)) : -1;
       // entro l'1,5% conta come raggiunto (niente "arrivare a 6,71, oggi 6,70")
       const reached = (v) => youRole != null && (better(youRole, v) || Math.abs(youRole - v) <= Math.abs(v) * 0.015);
-      const next = typical.find((r) => LEVEL_TIERS.indexOf(r.t) > own && !reached(r.v));
+      // dalla tua lega in su: chi e' sotto il valore tipico della sua lega punta prima a quello
+      const next = typical.find((r) => LEVEL_TIERS.indexOf(r.t) >= own && !reached(r.v));
       // l'obiettivo per lega ha senso solo per i parametri che cambiano da una lega all'altra
       const informative = DATA.level && DATA.level.axesByRole && (DATA.level.axesByRole[role] || []).includes(a.key);
       if (!informative) {
         target = null;
       } else if (next && youRole != null) {
         target = para(el('strong', { text: 'Obiettivo concreto: ' }),
-          `${a.invert ? 'scendere a' : 'arrivare a'} ${a.f(next.v)} (oggi ${a.f(youRole)}), il valore tipico ${dei(next.t)} ${tierName(next.t)} da ${roleLabel(role)}.`);
+          `${a.invert ? 'scendere a' : 'arrivare a'} ${a.f(next.v)} (oggi ${a.f(youRole)}), il valore tipico ${dei(next.t)} ${tierName(next.t)} da ${roleLabel(role)}`
+          + `${LEVEL_TIERS.indexOf(next.t) === own ? ', la tua lega' : ''}.`);
       } else if (youRole != null) {
         target = para(el('strong', { text: 'Obiettivo concreto: ' }), 'sei già oltre il valore tipico di tutte le leghe più alte della tua: mantienilo.');
       }
