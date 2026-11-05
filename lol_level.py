@@ -170,6 +170,20 @@ def estimate_level(rows: list[dict], tiers: dict, rank: dict | None, lobby: dict
             pos, axis_bound = crossing(curve_of(lines))
             axis_levels[key] = {"position": round(pos, 2), "bound": axis_bound, "games": len(lines), **position_label(pos)}
 
+    # Lo stesso, ruolo per ruolo: nella scheda di un parametro il livello deve riferirsi al ruolo mostrato
+    by_role = {}
+    for role, keys in axes_by_role.items():
+        role_rows = [r for r in rows if r["role"] == role]
+        levels = {}
+        for key in keys:
+            lines = [line for r in role_rows
+                     if None not in (line := [axis_score(key, r.get(key), tiers[t]["roles"].get(role, {})) for t in TIER_ORDER])]
+            if len(lines) >= MIN_GAMES // 2:
+                pos, axis_bound = crossing(curve_of(lines))
+                levels[key] = {"position": round(pos, 2), "bound": axis_bound, "games": len(lines), **position_label(pos)}
+        if levels:
+            by_role[role] = levels
+
     own_tier = None
     if rank and rank.get("tier") in TIER_ORDER:
         own_tier = rank["tier"]
@@ -191,6 +205,7 @@ def estimate_level(rows: list[dict], tiers: dict, rank: dict | None, lobby: dict
         "curve": {t: round(v, 1) for t, v in zip(TIER_ORDER, curve)},
         "axesByRole": {role: list(keys) for role, keys in axes_by_role.items()},
         "axisLevels": axis_levels,
+        "axisLevelsByRole": by_role,
         "ownTier": own_tier,
         "scoreOwnTier": overall_score(rows, tiers[own_tier]["roles"]) if own_tier else None,
         "scoreLobby": overall_score(rows, lobby) if lobby else None,

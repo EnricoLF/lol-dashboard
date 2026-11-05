@@ -1179,6 +1179,9 @@
   }
   const benchRoles = () => (BENCH[filters.bench] || {}).roles || {};
   const benchName = () => (filters.bench === 'lobby' ? 'la tua lobby' : (BENCH[filters.bench] || {}).label || 'riferimento');
+  // "un giocatore Silver" / "un giocatore della tua lobby"; "dei Silver" / "degli Emerald" / "della tua lobby"
+  const benchPlayer = () => (filters.bench === 'lobby' ? 'un giocatore della tua lobby' : `un giocatore ${benchName()}`);
+  const benchOf = () => (filters.bench === 'lobby' ? 'della tua lobby' : `${/^[AEIOU]/.test(filters.bench) ? 'degli' : 'dei'} ${benchName()}`);
 
   // Percentile di v in una distribuzione descritta dai suoi quantili ogni 5% (interpolazione lineare)
   function percentileOf(v, q) {
@@ -1381,7 +1384,7 @@
         el('div', { class: 'focus-title' }, icon(focus.a.key), document.createTextNode(focus.a.axis)),
         versus(focus.a, [{ short: 'Tu', you: focus.s.you, color: 'var(--s1)' }], focus.s.ref, true, undefined, scoreTone(focus.s.score)),
         el('p', {}, document.createTextNode(`${focus.a.label} · punteggio `), el('strong', { text: `${Math.round(focus.s.score)}/100` }),
-          document.createTextNode(`: confrontando una tua partita con una di ${benchName()} nello stesso ruolo, fai meglio tu ${Math.round(focus.s.score)} volte su 100.`)));
+          document.createTextNode(`: confrontando una tua partita con quella di ${benchPlayer()} nello stesso ruolo, fai meglio tu ${Math.round(focus.s.score)} volte su 100.`)));
       if (focus.imp) {
         body.append(el('p', { text: `Nelle tue partite, quando fai meglio della tua mediana (${focus.a.f(focus.imp.med)}) vinci il ${pct(winRate(focus.imp.better), 0)}, altrimenti il ${pct(winRate(focus.imp.worse), 0)}.`
           + (focus.a.biased ? ' Parte di questa differenza dipende dal fatto che chi vince sale naturalmente in questo parametro.' : '') }));
@@ -1415,6 +1418,10 @@
   // ---------------------------------------------------------------- il tuo livello (calcolato dallo script)
   const LEVEL_TIERS = ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER'];
   const tierName = (t) => (t === 'MASTER' ? 'Master+' : cap(t));
+  // "dei Gold" ma "degli Emerald"; "i Silver" ma "gli Iron"
+  const startsWithVowel = (t) => /^[AEIOU]/.test(t);
+  const dei = (t) => (startsWithVowel(t) ? 'degli' : 'dei');
+  const iGli = (t) => (startsWithVowel(t) ? 'gli' : 'i');
   const axisByKey = (k) => AXES.find((a) => a.key === k);
   // Posizione sulla scala delle leghe (0 = centro di Iron ... 7 = Master+) -> percentuale della barra
   const ladderPct = (p) => `${((Math.min(7.5, Math.max(-0.5, p)) + 0.5) / 8) * 100}%`;
@@ -1480,7 +1487,7 @@
         const col = el('div', { class: 'lvl-col' + (t === lv.tier ? ' near' : '') },
           el('span', { class: 'lvl-val ' + scoreTone(v), text: fmt(v, 0) }),
           el('div', { class: 'lvl-plot' }, colbar, el('div', { class: 'lvl-fifty' })), el('span', { class: 'lvl-name', text: tierName(t).slice(0, 4) }));
-        col.title = `Contro i ${tierName(t)}: ${fmt(v, 0)}/100`;
+        col.title = `Contro ${iGli(t)} ${tierName(t)}: ${fmt(v, 0)}/100`;
         return col;
       }));
 
@@ -1502,7 +1509,7 @@
       el('div', { class: 'lvl-side' },
         el('h3', { class: 'mini', text: 'Il tuo punteggio contro ogni lega' }), curve,
         el('div', { class: 'stats', style: 'margin-top:12px' },
-          stat(ownTier ? `Contro i ${ownTier} (la tua lega)` : 'Contro la tua lega', scoreSpan(lv.scoreOwnTier), 'Punteggio medio delle tue partite, tutti gli 8 parametri'),
+          stat(ownTier ? `Contro ${iGli(lv.ownTier)} ${ownTier} (la tua lega)` : 'Contro la tua lega', scoreSpan(lv.scoreOwnTier), 'Punteggio medio delle tue partite, tutti gli 8 parametri'),
           stat('Contro la tua lobby (MMR simile)', scoreSpan(lv.scoreLobby), 'Gli altri 9 giocatori delle tue partite: il confronto più diretto con il tuo MMR')))),
       el('p', { class: 'sub lvl-how' },
         `Come si stima: per ogni lega si calcola il punteggio che avresti se le tue partite fossero confrontate con i giocatori di quella lega, nello stesso ruolo. `
@@ -1519,8 +1526,15 @@
     const youRole = median(roleGames.map(a.fn).filter((v) => v != null));
     const scored = role && scoredFor(a, role);
     const level = DATA.level && DATA.level.axisLevels ? DATA.level.axisLevels[a.key] : null;
+    const roleLevel = DATA.level && DATA.level.axisLevelsByRole && DATA.level.axisLevelsByRole[role] ? DATA.level.axisLevelsByRole[role][a.key] : null;
     const section = (title, ...parts) => el('section', {}, el('h3', { text: title }), ...parts);
     const para = (...parts) => el('p', {}, ...parts.map((x) => (typeof x === 'string' ? document.createTextNode(x) : x)));
+    const bound = (lv) => (lv.bound === 'max' ? ' o più (sopra la media anche dei Master+)' : lv.bound === 'min' ? ' o meno (sotto la media anche degli Iron)' : '');
+    // Livello nel ruolo mostrato dalla scala qui sotto, e su tutti i ruoli se diverso (stagione in corso)
+    const levelPara = (byRole, all) => para(...(byRole
+      ? [`Da ${roleLabel(role)}, in questo parametro giochi come un `, el('strong', { text: byRole.label }), `${bound(byRole)} (${byRole.games} partite della stagione), cioè la lega in cui saresti il giocatore tipico.`,
+        ...(all && all.label !== byRole.label ? [' Contando tutti i ruoli che giochi: ', el('strong', { text: all.label }), '.'] : [])]
+      : ['Stagione in corso, tutti i ruoli: in questo parametro giochi come un ', el('strong', { text: all.label }), `${bound(all)}, cioè la lega in cui saresti il giocatore tipico.`]));
     const better = (x, y) => (a.invert ? x < y : x > y);
 
     // Valore tipico per lega nel ruolo principale, con il tuo valore come linea verticale
@@ -1538,15 +1552,21 @@
           line.style.left = `${(youRole / max) * 100}%`;
           track.append(line);
         }
-        return el('div', { class: 'lad-row' + (youRole != null && better(youRole, r.v) ? ' beaten' : '') },
+        return el('div', { class: 'lad-row' + (youRole != null && (better(youRole, r.v) || a.f(youRole) === a.f(r.v)) ? ' beaten' : '') },
           el('span', { class: 'lad-name', text: tierName(r.t) }), track, el('span', { class: 'lad-num', text: a.f(r.v) }));
       }));
       // Obiettivo: il valore tipico della prima lega sopra la tua che non superi ancora
       const own = DATA.rank && TIERS.includes(DATA.rank.tier) ? Math.min(7, TIERS.indexOf(DATA.rank.tier)) : -1;
-      const next = typical.find((r) => LEVEL_TIERS.indexOf(r.t) > own && (youRole == null || !better(youRole, r.v)));
-      if (next && youRole != null) {
+      // entro l'1,5% conta come raggiunto (niente "arrivare a 6,71, oggi 6,70")
+      const reached = (v) => youRole != null && (better(youRole, v) || Math.abs(youRole - v) <= Math.abs(v) * 0.015);
+      const next = typical.find((r) => LEVEL_TIERS.indexOf(r.t) > own && !reached(r.v));
+      // l'obiettivo per lega ha senso solo per i parametri che cambiano da una lega all'altra
+      const informative = DATA.level && DATA.level.axesByRole && (DATA.level.axesByRole[role] || []).includes(a.key);
+      if (!informative) {
+        target = null;
+      } else if (next && youRole != null) {
         target = para(el('strong', { text: 'Obiettivo concreto: ' }),
-          `${a.invert ? 'scendere a' : 'arrivare a'} ${a.f(next.v)} (oggi ${a.f(youRole)}), il valore tipico dei ${tierName(next.t)} da ${roleLabel(role)}.`);
+          `${a.invert ? 'scendere a' : 'arrivare a'} ${a.f(next.v)} (oggi ${a.f(youRole)}), il valore tipico ${dei(next.t)} ${tierName(next.t)} da ${roleLabel(role)}.`);
       } else if (youRole != null) {
         target = para(el('strong', { text: 'Obiettivo concreto: ' }), 'sei già oltre il valore tipico di tutte le leghe più alte della tua: mantienilo.');
       }
@@ -1564,11 +1584,10 @@
         el('div', {},
           s.score == null
             ? para(scored === false ? `Non si valuta per i ${roleLabel(role)}.` : 'Nessuna partita valutabile nel filtro corrente.')
-            : para('Confrontando una tua partita con una di ', el('strong', { text: benchName() }), ` nello stesso ruolo, fai meglio tu ${Math.round(s.score)} volte su 100. 50 = giocatore tipico.`),
-          s.score == null ? null : para(`Il tuo valore tipico: `, el('strong', { text: a.f(s.you) }), ` · tipico di ${benchName()}: `, el('strong', { text: a.f(s.ref) }), ` · ${s.n} partite valutate.`))),
+            : para(`Confrontando una tua partita con quella di ${benchPlayer()} nello stesso ruolo, fai meglio tu `, el('strong', { text: `${Math.round(s.score)} volte su 100` }), '. 50 = giocatore tipico.'),
+          s.score == null ? null : para(`Il tuo valore tipico: `, el('strong', { text: a.f(s.you) }), ` · tipico ${benchOf()}: `, el('strong', { text: a.f(s.ref) }), ` · ${s.n} partite valutate.`))),
       section('Livello di questo parametro',
-        level ? para('Stagione in corso, tutti i ruoli: in questo parametro giochi come un ', el('strong', { text: level.label }),
-          level.bound === 'max' ? ' o più (sei sopra la media anche dei Master+).' : level.bound === 'min' ? ' o meno (sei sotto la media anche degli Iron).' : ', cioè la lega in cui saresti il giocatore tipico.')
+        roleLevel || level ? levelPara(roleLevel, level)
           : para(scored === false ? '–' : 'Non indica la lega: nel tuo ruolo il giocatore tipico ha più o meno lo stesso valore da Iron a Master+. Serve a capire come giochi rispetto ai tuoi avversari, non il tuo livello.'),
         ladder ? el('h3', { class: 'mini', text: `Valore tipico per lega · ${roleLabel(role)}${youRole != null ? ` (tu: ${a.f(youRole)} in ${roleGames.length} partite)` : ''}` }) : null,
         ladder, target),
