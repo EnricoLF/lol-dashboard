@@ -65,11 +65,71 @@
   .champs { display: flex; gap: 8px; align-items: center; color: var(--muted); font: 600 11px var(--display); text-transform: uppercase; letter-spacing: .1em; }
   .champs img { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--surface-3); }
   .meta { color: var(--muted); font-size: 12.5px; }
-  .level { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; }
-  .level .label { font: 600 11px var(--display); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); display: block; }
-  .level strong { font: 600 20px var(--display); }
-  .level .verdict { font: 600 12.5px var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); }
-  .level .verdict.good { color: var(--good-text); } .level .verdict.bad { color: var(--bad-text); }
+  /* Scheda "scouting": livello stimato sulla scala delle leghe + posizione nella squadra */
+  .scout {
+    position: relative; display: grid; gap: 12px; padding: 14px 14px 12px; border-radius: 8px; border: 1px solid var(--line);
+    background:
+      radial-gradient(240px 120px at 0% 0%, color-mix(in srgb, var(--est) 16%, transparent), transparent 70%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.005));
+  }
+  .scout-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .scout-kicker { font: 600 10.5px var(--display); text-transform: uppercase; letter-spacing: .16em; color: var(--muted); }
+  .scout-level { display: flex; align-items: baseline; gap: 7px; margin-top: 1px; }
+  .scout-level .tier { font: 700 30px/1 var(--display); color: var(--est); text-shadow: 0 0 18px color-mix(in srgb, var(--est) 45%, transparent); letter-spacing: .01em; }
+  .scout-level .band { font: 600 13px var(--display); text-transform: uppercase; letter-spacing: .14em; color: var(--text-2); }
+  .verdict-pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: 999px; white-space: nowrap;
+    font: 600 11.5px var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--text-2);
+    border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03);
+  }
+  .verdict-pill svg { width: 12px; height: 12px; }
+  .verdict-pill.good { color: var(--good-text); border-color: rgba(69, 211, 195, .35); background: rgba(69, 211, 195, .08); }
+  .verdict-pill.bad { color: var(--bad-text); border-color: rgba(242, 117, 159, .35); background: rgba(242, 117, 159, .08); }
+  .verdict-pill .gap { color: var(--text); opacity: .85; }
+
+  .ladder { position: relative; padding: 18px 0 0; }
+  .ladder-bar { position: relative; display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; height: 10px; }
+  .ladder-bar i { border-radius: 2px; background: var(--c); opacity: .26; }
+  .ladder-bar i.on { opacity: .9; box-shadow: 0 0 10px color-mix(in srgb, var(--c) 60%, transparent); }
+  .ladder-band { position: absolute; top: -3px; bottom: -3px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--est) 80%, white); background: color-mix(in srgb, var(--est) 14%, transparent); }
+  .ladder-arrow { position: absolute; top: 12px; height: 2px; background: currentColor; opacity: .9; }
+  .ladder-arrow::after { content: ""; position: absolute; top: -4px; border: 5px solid transparent; }
+  .ladder-arrow.up { color: var(--good-text); } .ladder-arrow.up::after { right: -6px; border-left-color: currentColor; border-right-width: 0; }
+  .ladder-arrow.down { color: var(--bad-text); } .ladder-arrow.down::after { left: -6px; border-right-color: currentColor; border-left-width: 0; }
+  .ladder-pin { position: absolute; width: 0; }
+  .ladder-pin.est { top: 17px; animation: slide .9s cubic-bezier(.2, .8, .2, 1) .25s both; }
+  .ladder-pin.est::before {
+    content: ""; position: absolute; left: -7px; top: 0; width: 12px; height: 12px; transform: rotate(45deg);
+    background: var(--est); border: 2px solid #0e0d19; box-shadow: 0 0 12px var(--est);
+  }
+  .ladder-pin.rank { top: 0; }
+  .ladder-pin.rank::before { content: ""; position: absolute; left: -5px; top: 9px; border: 5px solid transparent; border-top: 7px solid var(--text); border-bottom-width: 0; }
+  .ladder-pin span { position: absolute; white-space: nowrap; font: 600 11px var(--display); letter-spacing: .04em; transform: translateX(-50%); }
+  .ladder-pin.rank span { top: -6px; color: var(--text-2); }
+  .ladder-pin.est span { top: 15px; color: var(--est); }
+  .ladder-pin.start span { transform: translateX(-10px); } .ladder-pin.end span { transform: translateX(calc(-100% + 10px)); }
+  .ladder-letters { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin-top: 24px; }
+  .ladder-letters b { font: 600 10px var(--display); text-align: center; letter-spacing: .08em; color: var(--muted); opacity: .75; }
+  .ladder-letters b.hit { color: var(--c); opacity: 1; }
+  @keyframes slide { from { left: var(--from); opacity: 0; } 20% { opacity: 1; } to { left: var(--to); } }
+
+  .squad { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center; padding-top: 11px; border-top: 1px dashed rgba(255, 255, 255, 0.08); }
+  .squad-label { font: 600 10.5px var(--display); text-transform: uppercase; letter-spacing: .16em; color: var(--muted); }
+  .slots { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 9px; }
+  .slots span { height: 22px; display: grid; place-items: center; border-radius: 4px; font: 600 11px var(--display); color: var(--muted); background: rgba(255, 255, 255, 0.035); border: 1px solid var(--line); }
+  .slots span.best { color: var(--gold-text); }
+  .slot-marker { position: absolute; top: -7px; width: 0; }
+  .slot-marker::before { content: ""; position: absolute; left: -5px; border: 5px solid transparent; border-top: 6px solid var(--gold-text); border-bottom-width: 0; }
+  .squad-text { margin-top: 5px; font-size: 12px; color: var(--text-2); }
+  .squad-text strong { font: 600 14px var(--display); color: var(--text); }
+  .ring { position: relative; width: 58px; height: 58px; margin: 0 auto; }
+  .ring svg { width: 58px; height: 58px; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 6; }
+  .ring .track { stroke: rgba(255, 255, 255, 0.07); }
+  .ring .value { stroke: var(--ring); stroke-linecap: round; animation: fill 1s cubic-bezier(.2, .8, .2, 1) .3s both; }
+  .ring b { position: absolute; inset: 0; display: grid; place-items: center; font: 700 15px var(--display); }
+  .ring-caption { display: block; text-align: center; font: 600 9px var(--display); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-top: 3px; max-width: 70px; line-height: 1.2; }
+  @keyframes fill { from { stroke-dashoffset: var(--len); } }
   .warn { font-size: 12.5px; color: var(--text-2); border-left: 3px solid var(--warning); padding-left: 8px; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
   button, a.btn {
@@ -80,7 +140,7 @@
   button.primary:hover { filter: brightness(1.12); }
   a.btn:hover { border-color: var(--gold-text); }
   .missing { margin-top: 22px; color: var(--text-2); font-size: 13px; }
-  @media (prefers-reduced-motion: reduce) { .card { animation: none; transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .card, .ladder-pin.est, .ring .value { animation: none; transition: none; } }
 </style>
 </head>
 <body>
@@ -140,15 +200,104 @@
   // Lega piu' vicina alle prestazioni (stimata dallo script) e confronto con il rank attuale
   const ROLE_NAMES = { TOP: 'Top', JUNGLE: 'Jungle', MIDDLE: 'Mid', BOTTOM: 'ADC', UTILITY: 'Support' };
   const fmtNum = (v) => v.toLocaleString('it-IT', { maximumFractionDigits: 1 });
-  function levelLine(lv) {
+  // Scheda "scouting": livello stimato sulla scala delle 8 leghe (con rank attuale e intervallo) e
+  // posizione nella squadra. Le posizioni vanno da 0 (centro di Iron) a 7 (Master+), come nella dashboard.
+  const LADDER = ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER'];
+  const TIER_SHORT = ['I', 'B', 'S', 'G', 'P', 'E', 'D', 'M'];
+  const ladderPct = (p) => ((Math.min(7.5, Math.max(-0.5, p)) + 0.5) / 8) * 100;
+  const tierName = (t) => (t === 'MASTER' ? 'Master+' : cap(t));
+  const ICON_UP = '<svg viewBox="0 0 12 12"><path d="M6 2l4.5 6h-9z" fill="currentColor"/></svg>';
+  const ICON_DOWN = '<svg viewBox="0 0 12 12"><path d="M6 10L1.5 4h9z" fill="currentColor"/></svg>';
+  const ICON_EQ = '<svg viewBox="0 0 12 12"><path d="M2 4h8M2 8h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  // Distanza dal rank: in divisioni fino a 3, poi in leghe arrotondate alla mezza
+  function gapText(gap) {
+    const n = Math.round(Math.abs(gap) * 4);
+    if (n < 4) return n ? `${n} div.` : '';
+    const half = Math.max(1, Math.round(Math.abs(gap) * 2) / 2);
+    return `${fmtNum(half)} ${half === 1 ? 'lega' : 'leghe'}`;
+  }
+  function pin(kind, pos, label) {
+    const pct = ladderPct(pos);
+    const node = el('div', { class: `ladder-pin ${kind}${pct < 16 ? ' start' : pct > 84 ? ' end' : ''}` }, el('span', { text: label }));
+    node.style.left = `${pct}%`;
+    return node;
+  }
+  function levelLine(lv, rank) {
     if (!lv) return null;
-    const verdicts = { above: ['good', 'Sopra il rank'], inline: ['', 'In linea con il rank'], below: ['bad', 'Sotto il rank'] };
-    const [cls, text] = verdicts[lv.verdict] || ['', ''];
-    const range = lv.lowLabel === lv.highLabel ? '' : ` (${lv.lowLabel} – ${lv.highLabel})`;
-    return el('div', { class: 'level', title: `Lega più vicina alle prestazioni${range}, ${lv.scope === 'season' ? 'stagione in corso' : 'ultime 100 partite'}` },
-      el('div', {}, el('span', { class: 'label', text: lv.role ? `Livello da ${ROLE_NAMES[lv.role] || lv.role}` : 'Livello delle prestazioni' }), el('strong', { text: lv.label })),
-      el('span', { class: `verdict ${cls}`, text }),
-      lv.teamRank == null ? null : el('span', { class: 'label', style: 'width:100%', text: `In squadra: ${fmtNum(lv.teamRank)}° su 5 in media · supera il ${Math.round(lv.teamScore)}% dei compagni` }));
+    const estColor = TIER_COLORS[lv.tier] || TIER_COLORS.GOLD;
+    const verdicts = { above: ['good', ICON_UP, 'Sopra il rank'], inline: ['', ICON_EQ, 'In linea'], below: ['bad', ICON_DOWN, 'Sotto il rank'] };
+    const [cls, iconSvg, verdictText] = verdicts[lv.verdict] || ['', ICON_EQ, 'Rank n/d'];
+    const pill = el('span', { class: `verdict-pill ${cls}` });
+    pill.innerHTML = iconSvg;
+    pill.append(document.createTextNode(verdictText));
+    if (lv.verdict !== 'inline' && lv.gap != null && gapText(lv.gap)) pill.append(el('span', { class: 'gap', text: `· ${gapText(lv.gap)}` }));
+
+    // Scala delle leghe: segmenti nei colori di lega, accesi quelli dentro l'intervallo probabile
+    const inBand = (i) => i + 0.5 > lv.low && i - 0.5 < lv.high;
+    const bar = el('div', { class: 'ladder-bar' }, ...LADDER.map((t, i) => {
+      const seg = el('i', { class: inBand(i) ? 'on' : null, title: tierName(t) });
+      seg.style.setProperty('--c', TIER_COLORS[t]);
+      return seg;
+    }));
+    if (lv.low != null && lv.high != null) {
+      const band = el('div', { class: 'ladder-band', title: `Intervallo probabile: ${lv.lowLabel} – ${lv.highLabel}` });
+      band.style.left = `${ladderPct(lv.low)}%`;
+      band.style.width = `${Math.max(1.5, ladderPct(lv.high) - ladderPct(lv.low))}%`;
+      bar.append(band);
+    }
+    const hasRank = lv.rankPosition != null && rank && rank.tier !== 'UNRANKED';
+    const ladder = el('div', { class: 'ladder', role: 'img',
+      'aria-label': `${hasRank ? `Rank ${rankText(rank)}, ` : ''}livello stimato ${lv.label}, intervallo da ${lv.lowLabel} a ${lv.highLabel}` });
+    ladder.append(bar);
+    // freccia dal rank al livello stimato, sotto la scala
+    if (hasRank && Math.abs(lv.position - lv.rankPosition) > 0.15) {
+      const from = ladderPct(Math.min(lv.position, lv.rankPosition)), to = ladderPct(Math.max(lv.position, lv.rankPosition));
+      const arrow = el('div', { class: `ladder-arrow ${lv.position > lv.rankPosition ? 'up' : 'down'}` });
+      arrow.style.left = `${from}%`;
+      arrow.style.width = `${to - from}%`;
+      ladder.append(arrow);
+    }
+    if (hasRank) ladder.append(pin('rank', lv.rankPosition, rankText(rank).split(' · ')[0]));
+    const est = pin('est', lv.position, lv.label);
+    est.style.setProperty('--from', `${ladderPct(hasRank ? lv.rankPosition : lv.position)}%`);
+    est.style.setProperty('--to', `${ladderPct(lv.position)}%`);
+    ladder.append(est);
+    const estIndex = LADDER.indexOf(lv.tier);
+    const rankIndex = hasRank ? Math.max(0, Math.min(7, Math.round(lv.rankPosition))) : -1;
+    ladder.append(el('div', { class: 'ladder-letters', 'aria-hidden': 'true' }, ...TIER_SHORT.map((letter, i) => {
+      const b = el('b', { class: i === estIndex || i === rankIndex ? 'hit' : null, text: letter, title: tierName(LADDER[i]) });
+      b.style.setProperty('--c', i === estIndex ? estColor : 'var(--text)');
+      return b;
+    })));
+
+    // Posizione nella squadra: 5 caselle con il segno sulla posizione media, anello dei compagni superati
+    let squad = null;
+    if (lv.teamRank != null && lv.teamScore != null) {
+      const marker = el('div', { class: 'slot-marker', title: `Posizione media ${fmtNum(lv.teamRank)}° su 5` });
+      marker.style.left = `${((lv.teamRank - 0.5) / 5) * 100}%`;
+      const slots = el('div', { class: 'slots' }, ...[1, 2, 3, 4, 5].map((n) => el('span', { class: n === 1 ? 'best' : null, text: `${n}°` })), marker);
+      const r = 23, len = 2 * Math.PI * r, share = Math.max(0, Math.min(100, lv.teamScore)) / 100;
+      const ring = el('div', { class: 'ring', title: 'Quota di compagni di squadra con un punteggio partita più basso del tuo' });
+      ring.innerHTML = `<svg viewBox="0 0 58 58" aria-hidden="true"><circle class="track" cx="29" cy="29" r="${r}"/>`
+        + `<circle class="value" cx="29" cy="29" r="${r}" stroke-dasharray="${len.toFixed(1)}" stroke-dashoffset="${(len * (1 - share)).toFixed(1)}" style="--len:${len.toFixed(1)}"/></svg>`;
+      ring.append(el('b', { text: `${Math.round(lv.teamScore)}%` }));
+      // verde se superi nettamente i compagni, rosa se nettamente meno, oro intorno al 50%
+      ring.style.setProperty('--ring', lv.teamScore >= 55 ? 'var(--good-text)' : lv.teamScore <= 45 ? 'var(--bad-text)' : 'var(--gold-text)');
+      squad = el('div', { class: 'squad' },
+        el('div', {}, el('div', { class: 'squad-label', text: 'In squadra' }), slots,
+          el('div', { class: 'squad-text' }, el('strong', { text: `${fmtNum(lv.teamRank)}°` }), document.createTextNode(' su 5 in media'),
+            lv.teamBest != null ? document.createTextNode(` · migliore nel ${Math.round(lv.teamBest * 100)}% delle partite`) : null)),
+        el('div', {}, ring, el('span', { class: 'ring-caption', text: 'compagni superati' })));
+    }
+
+    const box = el('div', { class: 'scout', title: `${lv.scope === 'season' ? 'Stagione in corso' : 'Ultime 100 partite'} · ${lv.games} partite da ${ROLE_NAMES[lv.role] || lv.role}` },
+      el('div', { class: 'scout-top' },
+        el('div', {}, el('div', { class: 'scout-kicker', text: `Livello da ${ROLE_NAMES[lv.role] || lv.role}` }),
+          el('div', { class: 'scout-level' }, el('span', { class: 'tier', text: tierName(lv.tier) }), lv.band ? el('span', { class: 'band', text: lv.band }) : null)),
+        pill),
+      ladder, squad);
+    box.style.setProperty('--est', estColor);
+    return box;
   }
 
   for (const a of DATA.accounts) {
@@ -167,9 +316,9 @@
       el('div', { class: 'head' }, crest(tierColor), el('div', {}, el('div', { class: 'name', text: a.player }), el('div', { class: 'rank', text: rankText(a.rank) }))),
       el('div', { class: 'figures' },
         figure(a.season ? 'Partite stagione' : 'Partite', String(a.games)), figure('Win rate', fmtPct(a.winRate), a.winRate), figure(`Ultime ${a.recentGames}`, fmtPct(a.recentWinRate), a.recentWinRate)),
-      levelLine(a.level),
+      levelLine(a.level, a.rank),
       champs,
-      el('div', { class: 'meta', text: `Ultima partita:${new Date(a.lastGame).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' })}` }),
+      el('div', { class: 'meta', text: `Ultima partita: ${new Date(a.lastGame).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' })}` }),
       a.status.ok ? null : el('div', { class: 'warn', text: a.status.message }),
       el('div', { class: 'actions' },
         el('button', { class: 'primary', type: 'button', text: 'Apri in una finestra', onclick: () => openWindow(a) }),
