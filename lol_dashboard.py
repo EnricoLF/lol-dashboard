@@ -595,8 +595,11 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
     }
     print(f"Dati pronti: {len(games)} partite, {len(partners)} partner duo")
 
-    # Riepilogo per la pagina indice: stagione in corso se nota (le partite sono gia' dalla piu' recente)
+    # Riepilogo per la pagina indice: stagione in corso se nota, nel ruolo principale (quello della stima
+    # del livello, altrimenti il piu' giocato); le partite sono gia' dalla piu' recente
     shown = season_games or games
+    main_role = level["role"] if level else Counter(g["role"] for g in shown).most_common(1)[0][0]
+    shown = [g for g in shown if g["role"] == main_role] or shown
     recent = shown[:20]
     champion_counts = Counter(g["champ"] for g in shown)
     return payload, {
@@ -607,6 +610,7 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
         "status": status,
         "rank": history[-1] if history else None,
         "season": bool(season_games),
+        "role": main_role,
         "level": level and {k: level.get(k) for k in ("label", "band", "lowLabel", "highLabel", "verdict", "gap", "tier", "scope", "role", "games", "teamRank",
                       "teamScore", "teamBest", "position", "low", "high", "rankPosition")},
         "games": len(shown),

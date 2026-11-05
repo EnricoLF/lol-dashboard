@@ -150,7 +150,8 @@
   <p class="sub" id="updated"></p>
   <div class="cards" id="cards"></div>
   <p class="missing" id="missing" hidden></p>
-  <p class="meta" style="margin-top:28px"><strong>Livello</strong>: la lega in cui il giocatore sarebbe nella media, stimata sulle partite della stagione nel suo ruolo principale e sui parametri che cambiano davvero da una lega all'altra (CS/min e CS a 10 minuti; per i Support visione e partecipazione alle uccisioni). Il giudizio somma due misure: il farm rispetto al rank e quanti compagni di squadra supera, usando tutti gli 8 parametri del radar. Il calcolo passo per passo è nella dashboard di ogni account, nel riquadro "Il tuo livello".</p>
+  <p class="meta" style="margin-top:28px">Partite, win rate, ultime 20 e campioni di ogni scheda si riferiscono alla stagione in corso nel <strong>ruolo principale</strong> dell'account, quello che gioca di più.</p>
+  <p class="meta" style="margin-top:10px"><strong>Livello</strong>: la lega in cui il giocatore sarebbe nella media, stimata sulle partite della stagione nel suo ruolo principale e sui parametri che cambiano davvero da una lega all'altra (CS/min e CS a 10 minuti; per i Support visione e partecipazione alle uccisioni). Il giudizio somma due misure: il farm rispetto al rank e quanti compagni di squadra supera, usando tutti gli 8 parametri del radar. Il calcolo passo per passo è nella dashboard di ogni account, nel riquadro "Il tuo livello".</p>
   <p class="meta" style="margin-top:10px">Dati: Riot Games API. Questa pagina non è approvata da Riot Games. Riot Games e League of Legends sono marchi di Riot Games, Inc.</p>
 </div>
 
@@ -315,7 +316,7 @@
     const card = el('article', { class: 'card' },
       el('div', { class: 'head' }, crest(tierColor), el('div', {}, el('div', { class: 'name', text: a.player }), el('div', { class: 'rank', text: rankText(a.rank) }))),
       el('div', { class: 'figures' },
-        figure(a.season ? 'Partite stagione' : 'Partite', String(a.games)), figure('Win rate', fmtPct(a.winRate), a.winRate), figure(`Ultime ${a.recentGames}`, fmtPct(a.recentWinRate), a.recentWinRate)),
+        figure(`Partite${a.role ? ` da ${ROLE_NAMES[a.role] || a.role}` : ''}${a.season ? ' (stagione)' : ''}`, String(a.games)), figure('Win rate', fmtPct(a.winRate), a.winRate), figure(`Ultime ${a.recentGames}`, fmtPct(a.recentWinRate), a.recentWinRate)),
       levelLine(a.level, a.rank),
       champs,
       el('div', { class: 'meta', text: `Ultima partita: ${new Date(a.lastGame).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' })}` }),

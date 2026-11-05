@@ -536,7 +536,7 @@
 
     <article class="card">
       <h2>Win rate per ruolo</h2>
-      <p class="sub">Barre in trasparenza = meno di 3 partite.</p>
+      <p class="sub">Tutti i ruoli, anche se il filtro Ruolo ne mostra uno solo. Barre in trasparenza = meno di 3 partite.</p>
       <div class="bars" id="roles"></div>
     </article>
 
@@ -734,10 +734,17 @@
   // ---------------------------------------------------------------- filtri
   // Ogni account ricorda i suoi filtri
   let filters = {};
-  // Ogni account si apre sempre sulla stagione in corso, Solo e Duo insieme, tutti i ruoli e campioni.
+  // Ogni account si apre sempre sulla stagione in corso, Solo e Duo insieme, nel ruolo principale e con tutti
+  // i campioni: cosi' ogni KPI confronta le tue partite del ruolo principale con lo stesso ruolo del riferimento.
   // Dal browser si riprendono solo le preferenze di visualizzazione: lega di confronto e vista del radar.
+  // Ruolo principale: quello della stima del livello (stagione in corso), altrimenti il piu' giocato.
+  function primaryRole() {
+    if (DATA.level && DATA.level.role) return DATA.level.role;
+    const pool = DATA.season ? games.filter((g) => g.ts >= DATA.season.start) : games;
+    return mainRole(pool.length ? pool : games);
+  }
   function loadFilters() {
-    filters = { period: 'season', queue: 'all', role: 'all', champ: 'all' };
+    filters = { period: 'season', queue: 'all', role: primaryRole() || 'all', champ: 'all' };
     try {
       const saved = JSON.parse(localStorage.getItem(`${STORE_KEY}:${DATA.slug}`) || '{}');
       if (saved.bench) filters.bench = saved.bench;
@@ -760,7 +767,8 @@
     $('f-period').value = filters.period;
     setOptions($('f-queue'), [['all', 'Solo + Duo'], ['Solo', 'Solo Queue'], ['Duo', 'Duo Queue'],
       ...DATA.partners.map((p) => ['p:' + p.name, 'Duo con ' + p.name])], filters.queue);
-    setOptions($('f-role'), [['all', 'Tutti'], ...ROLE_ORDER.filter((r) => games.some((g) => g.role === r)).map((r) => [r, roleLabel(r)])], filters.role);
+    const primary = primaryRole();
+    setOptions($('f-role'), [['all', 'Tutti'], ...ROLE_ORDER.filter((r) => games.some((g) => g.role === r)).map((r) => [r, r === primary ? `${roleLabel(r)} (principale)` : roleLabel(r)])], filters.role);
     setOptions($('f-champ'), [['all', 'Tutti'], ...byCount('champ').map(([c, n]) => [c, `${c} (${n})`])], filters.champ);
     for (const [id, key] of [['f-period', 'period'], ['f-queue', 'queue'], ['f-role', 'role'], ['f-champ', 'champ']]) {
       $(id).onchange = (e) => { filters[key] = e.target.value; render(); };
@@ -778,10 +786,10 @@
     }; });
   }
   // Prima stagione, ruolo, campione e Solo/Duo, poi le ultime N partite rimaste (games e' ordinato dalla piu' vecchia)
-  function applyFilters({ ignoreQueue = false } = {}) {
+  function applyFilters({ ignoreQueue = false, ignoreRole = false } = {}) {
     const season = filters.period === 'season' && DATA.season ? DATA.season.start : null;
     const list = games.filter((g) => (season == null || g.ts >= season)
-      && (filters.role === 'all' || g.role === filters.role)
+      && (ignoreRole || filters.role === 'all' || g.role === filters.role)
       && (filters.champ === 'all' || g.champ === filters.champ)
       && (ignoreQueue || filters.queue === 'all'
         || (filters.queue.startsWith('p:') ? g.partners.includes(filters.queue.slice(2)) : g.queue === filters.queue)));
@@ -2227,7 +2235,7 @@
   function render() {
     try { localStorage.setItem(`${STORE_KEY}:${DATA.slug}`, JSON.stringify(filters)); } catch (e) { /* storage non disponibile */ }
     const gs = applyFilters();
-    $('f-count').textContent = `${gs.length} partite Ranked Solo/Duo nel filtro`;
+    $('f-count').textContent = `${gs.length} partite Ranked Solo/Duo${filters.role !== 'all' ? ` da ${roleLabel(filters.role)}` : ''} nel filtro`;
     renderTiles(gs);
     renderLevel();
     renderTeam(gs);
@@ -2241,7 +2249,7 @@
     renderWinRateTrend(gs);
     renderLpTrend();
     renderChampions(gs);
-    renderRoles(gs);
+    renderRoles(applyFilters({ ignoreRole: true }));   // confronto tra ruoli: ignora il filtro Ruolo
     renderDurations(gs);
     renderHeatmap(gs);
     renderHabits(gs);
