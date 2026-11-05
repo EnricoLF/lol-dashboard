@@ -10,7 +10,10 @@ Pensato per essere eseguito in automatico piu' volte al giorno (vedi refresh_das
   - scarica solo le partite nuove: lo storico si accumula nella cache locale;
   - salva il rank ogni volta che cambia, da cui nascono il grafico e gli LP di ogni partita;
   - se l'API Key e' scaduta rigenera comunque la dashboard dai dati in cache;
-  - lanciato a mano (aggiorna_dashboard.bat) con la key scaduta, ne chiede una nuova e la salva nel .env.
+  - lanciato a mano in un terminale con la key scaduta, ne chiede una nuova e la salva nel .env.
+
+Dal 5/11/2026 lo esegue GitHub Actions ogni 15 minuti (.github/workflows/aggiorna-dashboard.yml) e pubblica
+le pagine su GitHub Pages; aggiorna_dashboard.bat avvia lo stesso workflow su richiesta.
 
 Gestisce piu' account in un'unica pagina (output/dashboard.html): un selettore in alto cambia
 account all'istante, e ogni account ha il suo indirizzo (dashboard.html#<account>) per aprirlo in
