@@ -146,7 +146,7 @@
     const card = el('article', { class: 'card' },
       el('div', { class: 'head' }, crest(tierColor), el('div', {}, el('div', { class: 'name', text: a.player }), el('div', { class: 'rank', text: rankText(a.rank) }))),
       el('div', { class: 'figures' },
-        figure('Partite', String(a.games)), figure('Win rate', fmtPct(a.winRate), a.winRate), figure(`Ultime ${a.recentGames}`, fmtPct(a.recentWinRate), a.recentWinRate)),
+        figure(a.season ? 'Partite stagione' : 'Partite', String(a.games)), figure('Win rate', fmtPct(a.winRate), a.winRate), figure(`Ultime ${a.recentGames}`, fmtPct(a.recentWinRate), a.recentWinRate)),
       champs,
       el('div', { class: 'meta', text: `Ultima partita: ${new Date(a.lastGame).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' })}` }),
       a.status.ok ? null : el('div', { class: 'warn', text: a.status.message }),

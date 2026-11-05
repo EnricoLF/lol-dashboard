@@ -315,8 +315,9 @@
   </div>
 
   <nav class="filters" aria-label="Filtri">
-    <label title="Le ultime N partite che rispettano anche gli altri filtri">Partite
+    <label title="Stagione ranked in corso, tutto lo storico o le ultime N partite che rispettano anche gli altri filtri">Partite
       <select id="f-period">
+        <option value="season">Stagione in corso</option>
         <option value="all">Tutto lo storico</option>
         <option value="n:10">Ultime 10</option>
         <option value="n:20">Ultime 20</option>
@@ -631,8 +632,13 @@
   // Ogni account ricorda i suoi filtri
   let filters = {};
   function loadFilters() {
-    filters = { period: 'all', queue: 'all', role: 'all', champ: 'all' };
-    try { Object.assign(filters, JSON.parse(localStorage.getItem(`${STORE_KEY}:${DATA.slug}`) || '{}')); } catch (e) { /* storage non disponibile */ }
+    filters = { period: 'season', queue: 'all', role: 'all', champ: 'all' };
+    try {
+      const saved = JSON.parse(localStorage.getItem(`${STORE_KEY}:${DATA.slug}`) || '{}');
+      if (saved.v !== 2) delete saved.period;   // dal 5/11/2026 si parte dalla stagione in corso, anche con filtri salvati prima
+      Object.assign(filters, saved);
+    } catch (e) { /* storage non disponibile */ }
+    filters.v = 2;
   }
 
   function setOptions(select, options, current) {
@@ -642,7 +648,11 @@
   function initFilters() {
     const byCount = (key) => Object.entries(games.reduce((acc, g) => ((acc[g[key]] = (acc[g[key]] || 0) + 1), acc), {}))
       .sort((a, b) => b[1] - a[1]);
-    if (![...$('f-period').options].some((o) => o.value === filters.period)) filters.period = 'all';   // es. vecchio filtro per giorni salvato
+    // Stagione in corso: calcolata dallo script; non disponibile se l'account non ha partite in questa stagione
+    const seasonOption = $('f-period').querySelector('option[value="season"]');
+    seasonOption.disabled = seasonOption.hidden = !DATA.season;
+    seasonOption.textContent = DATA.season ? `Stagione in corso (${DATA.season.games})` : 'Stagione in corso';
+    if (![...$('f-period').options].some((o) => o.value === filters.period && !o.disabled)) filters.period = 'all';   // es. vecchio filtro per giorni salvato
     $('f-period').value = filters.period;
     setOptions($('f-queue'), [['all', 'Tutte'], ['Solo', 'Solo Queue'], ['Duo', 'Duo Queue'],
       ...DATA.partners.map((p) => ['p:' + p.name, 'Duo con ' + p.name])], filters.queue);
@@ -663,9 +673,11 @@
       renderSkills(applyFilters());
     }; });
   }
-  // Prima ruolo, campione e Solo/Duo, poi le ultime N partite rimaste (games e' ordinato dalla piu' vecchia)
+  // Prima stagione, ruolo, campione e Solo/Duo, poi le ultime N partite rimaste (games e' ordinato dalla piu' vecchia)
   function applyFilters({ ignoreQueue = false } = {}) {
-    const list = games.filter((g) => (filters.role === 'all' || g.role === filters.role)
+    const season = filters.period === 'season' && DATA.season ? DATA.season.start : null;
+    const list = games.filter((g) => (season == null || g.ts >= season)
+      && (filters.role === 'all' || g.role === filters.role)
       && (filters.champ === 'all' || g.champ === filters.champ)
       && (ignoreQueue || filters.queue === 'all'
         || (filters.queue.startsWith('p:') ? g.partners.includes(filters.queue.slice(2)) : g.queue === filters.queue)));
@@ -1513,6 +1525,11 @@
           'Utile per capire cosa ti separa dalla lega successiva.'),
         p(`Riferimento attuale: ${bench.label === 'La tua lobby' || filters.bench === 'lobby' ? 'la tua lobby' : bench.label || '–'} · ${bench.matches || 0} partite · prestazioni per ruolo: ${roleSizes || '–'}`
           + (filters.bench !== 'lobby' && DATA.benchmarkDate ? ` · campione raccolto il ${new Date(DATA.benchmarkDate).toLocaleDateString('it-IT')}` : '') + '.')),
+      section('Stagione in corso',
+        p('È il filtro predefinito. Riot azzera vittorie e sconfitte a ogni nuova stagione ranked, quindi le tue ultime "vittorie + sconfitte" partite sono quelle della stagione. ',
+          'Il confine viene allineato al cambio di patch più vicino, perché ogni stagione parte con una patch nuova.'),
+        p(DATA.season ? `Per questo account: ${DATA.season.games} partite dal ${new Date(DATA.season.start).toLocaleDateString('it-IT', { dateStyle: 'long' })}. `
+          + 'Con "Tutto lo storico" vedi anche le stagioni precedenti in archivio.' : 'Questo account non ha ancora partite Ranked Solo/Duo nella stagione in corso.')),
       section('Punteggio partita e costanza',
         p(strong('Punteggio partita'), ': la media degli 8 assi in quella singola partita (servono almeno 6 assi disponibili). È il modo più rapido per capire se hai giocato bene indipendentemente dal risultato.'),
         p(strong('Costanza'), ': la deviazione standard dei punteggi partita. ±10 indica prestazioni regolari; ±20 o più indica partite molto alte alternate a partite molto basse.')),

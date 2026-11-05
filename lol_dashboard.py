@@ -270,6 +270,28 @@ def lp_changes(history: list[dict], games: list[dict], end_times: dict[str, int]
     return per_match, blocks
 
 
+def season_start(games: list[dict], rank: dict | None, patches: dict[str, str]) -> int | None:
+    """Inizio (timestamp ms della prima partita) della stagione ranked in corso, o None se non ne ha giocate.
+
+    Riot azzera vittorie e sconfitte a ogni nuova stagione, quindi le ultime wins + losses partite (games va
+    dalla piu' recente) sono quelle della stagione. Il conteggio puo' scostarsi di qualche partita, per esempio
+    se l'ultima non e' ancora scaricabile. Una stagione pero' parte sempre con una patch nuova: se il confine
+    cade tra le partite in archivio, lo si sposta sul cambio di patch piu' vicino, entro 3 partite.
+    """
+    played = (rank or {}).get("wins", 0) + (rank or {}).get("losses", 0)
+    if not games or not played:
+        return None
+    if played >= len(games):
+        return games[-1]["ts"]   # tutte le partite in archivio sono della stagione in corso
+
+    def patch(i: int) -> str | None:
+        return patches.get(games[i]["id"])
+
+    changes = [i for i in range(max(1, played - 3), min(len(games), played + 4)) if patch(i) != patch(i - 1)]
+    boundary = min(changes, key=lambda i: abs(i - played)) if changes else played
+    return games[boundary - 1]["ts"]
+
+
 def lp_stats(blocks: list[dict]) -> dict:
     """LP medi per vittoria e per sconfitta, sulle ultime LP_STATS_GAMES partite di ciascun tipo."""
     stats = {}
@@ -512,6 +534,13 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
     for game in games:
         if game["id"] in lp_by_match:
             game["lp"] = lp_by_match[game["id"]]
+
+    patches = {m["metadata"].get("matchId"): ".".join(m["info"].get("gameVersion", "").split(".")[:2]) for m in matches}
+    start = season_start(games, history[-1] if history else None, patches)
+    season_games = [g for g in games if g["ts"] >= start] if start is not None else []
+    season = {"start": start, "games": len(season_games)} if season_games else None
+    if season:
+        print(f"Stagione in corso: {len(season_games)} partite dal {datetime.fromtimestamp(start / 1000):%d/%m/%Y}")
     generated_at = datetime.now().isoformat(timespec="seconds")
     payload = {
         "slug": account["slug"],
@@ -521,6 +550,7 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
         "rank": history[-1] if history else None,
         "lpHistory": history,
         "lpStats": lp_stats(lp_blocks),
+        "season": season,
         "lobby": lobby,
         "partners": partners,
         "players": players,
@@ -528,9 +558,10 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
     }
     print(f"Dati pronti: {len(games)} partite, {len(partners)} partner duo")
 
-    # Riepilogo per la pagina indice (le partite sono gia' ordinate dalla piu' recente)
-    recent = games[:20]
-    champion_counts = Counter(g["champ"] for g in games)
+    # Riepilogo per la pagina indice: stagione in corso se nota (le partite sono gia' dalla piu' recente)
+    shown = season_games or games
+    recent = shown[:20]
+    champion_counts = Counter(g["champ"] for g in shown)
     return payload, {
         "player": riot_id,
         "slug": account["slug"],
@@ -538,8 +569,9 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
         "generatedAt": generated_at,
         "status": status,
         "rank": history[-1] if history else None,
-        "games": len(games),
-        "winRate": sum(g["win"] for g in games) / len(games),
+        "season": bool(season_games),
+        "games": len(shown),
+        "winRate": sum(g["win"] for g in shown) / len(shown),
         "recentWinRate": sum(g["win"] for g in recent) / len(recent),
         "recentGames": len(recent),
         "lastGame": games[0]["ts"],
