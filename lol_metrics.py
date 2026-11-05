@@ -25,8 +25,10 @@ METRIC_KEYS = ("kda", "deaths10", "csm", "cs10", "dpm", "kp", "vspm", "objm", "g
 # Gli 8 parametri del punteggio (radar). Stesse regole in dashboard_template.html (AXES): tenerle allineate.
 SCORE_AXES = ("kda", "dpm", "kp", "csm", "cs10", "deaths10", "vspm", "objm")
 INVERTED = frozenset({"deaths10"})                 # meno e' meglio: il punteggio e' 100 - percentile
-NOT_SCORED = {"UTILITY": frozenset({"csm", "cs10"})}  # i Support forti lasciano i minion all'ADC
-MIN_SCORED_AXES = 6                                # sotto questa soglia la partita non ha un punteggio
+# Per i Support non si valutano i CS (chi gioca bene li lascia all'ADC) ne' danni ai campioni e agli
+# obiettivi, che dipendono dal tipo di Support (tank, incantatore, mago) piu' che da come si gioca.
+NOT_SCORED = {"UTILITY": frozenset({"csm", "cs10", "dpm", "objm"})}
+MIN_SCORED_AXES = 6   # parametri minimi per avere un punteggio partita (per i Support: tutti i loro 4)
 MEAN_ONLY_KEYS = PING_TYPES  # per i singoli ping bastano media e mediana: niente quantili, file piu' leggero
 QUANTILE_STEPS = 20          # quantili ogni 5%: p0, p5, ..., p100 (21 valori)
 MIN_ROLE_SAMPLES = 15        # sotto questa soglia un ruolo non ha un riferimento affidabile
@@ -130,10 +132,14 @@ def scored_axes(role: str) -> tuple[str, ...]:
     return tuple(k for k in SCORE_AXES if k not in NOT_SCORED.get(role, ()))
 
 
+def min_scored_axes(role: str) -> int:
+    return min(MIN_SCORED_AXES, len(scored_axes(role)))
+
+
 def raw_game_score(row: dict, role_stats: dict) -> float | None:
     """Media dei punteggi dei parametri in una partita (prima della calibrazione)."""
     scores = [s for k in scored_axes(row["role"]) if (s := axis_score(k, row.get(k), role_stats)) is not None]
-    return sum(scores) / len(scores) if len(scores) >= MIN_SCORED_AXES else None
+    return sum(scores) / len(scores) if len(scores) >= min_scored_axes(row["role"]) else None
 
 
 def game_score(row: dict | None, roles: dict) -> float | None:

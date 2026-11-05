@@ -1106,7 +1106,8 @@
         'Nei teamfight colpisci il bersaglio più vicino che puoi raggiungere in sicurezza, invece di inseguire il carry nemico dietro la sua squadra.'],
       roleTips: { JUNGLE: 'Ganka le corsie in cui il tuo alleato tiene l\'ondata vicino alla sua torre e il nemico non ha il Flash.',
         UTILITY: 'Resta a portata del tuo ADC: da lì ogni sua uccisione diventa un tuo assist e le tue protezioni lo tengono vivo.' } },
-    { key: 'dpm', axis: 'Aggressività', label: 'Danni ai campioni/min', fn: (g) => g.dmg / g.dur, f: (v) => fmt(v, 0),
+    { key: 'dpm', axis: 'Aggressività', label: 'Danni ai campioni/min', fn: (g) => g.dmg / g.dur, f: (v) => fmt(v, 0), skip: ['UTILITY'],
+      skipWhy: 'per un Support i danni dipendono dal tipo di campione (tank, incantatore o mago) più che da come gioca',
       formula: 'Danni totali inflitti ai campioni nemici ÷ durata in minuti', fields: 'totalDamageDealtToChampions',
       what: 'Tutti i danni (fisici, magici e puri) che infliggi ai campioni nemici, divisi per i minuti di gioco. Scudi e cure non contano.',
       meaning: 'Misura la pressione che metti sugli avversari. Dividere per i minuti rende confrontabili partite corte e lunghe. Dipende molto dal campione: un tank o un support che protegge ne fa meno, ed è normale.',
@@ -1125,7 +1126,7 @@
       roleTips: { TOP: 'Da top tieni il Teletrasporto per gli scontri intorno al drago, non solo per tornare in corsia.',
         JUNGLE: 'Gioca vicino alla corsia che sta vincendo: è lì che nascono la maggior parte delle uccisioni.',
         UTILITY: 'Dopo aver completato la missione del support, accompagna il jungler o il mid nelle loro azioni quando la tua corsia è ferma.' } },
-    { key: 'csm', axis: 'Farm', label: 'CS al minuto', fn: (g) => g.cs / g.dur, f: (v) => fmt(v, 2), skip: ['UTILITY'],
+    { key: 'csm', axis: 'Farm', label: 'CS al minuto', fn: (g) => g.cs / g.dur, f: (v) => fmt(v, 2), skip: ['UTILITY'], skipWhy: 'un Support che gioca bene lascia i minion al suo ADC',
       formula: '(Minion + mostri neutrali uccisi) ÷ durata in minuti', fields: 'totalMinionsKilled, neutralMinionsKilled',
       what: 'Quanti minion e mostri della giungla uccidi in media ogni minuto, per tutta la partita.',
       meaning: 'È la fonte di oro più costante e quella che controlli di più: ogni minion vale circa 20 oro. È anche il parametro che distingue meglio una lega dall\'altra. Per i Support non si valuta: chi gioca bene lascia i minion al proprio ADC.',
@@ -1134,7 +1135,7 @@
         'Allenati in modalità Pratica: 10 minuti, solo ultimi colpi ai minion, con l\'obiettivo indicato sopra.'],
       roleTips: { JUNGLE: 'Ripulisci i tuoi campi appena rinascono e prendi le ondate di una corsia quando l\'alleato è morto o in base.',
         MIDDLE: 'Dopo un\'azione in un\'altra corsia torna subito in mid: l\'ondata centrale arriva prima delle altre.' } },
-    { key: 'cs10', axis: 'Early game', label: 'CS a 10 minuti', fn: (g) => g.cs10, f: (v) => fmt(v, 0), skip: ['UTILITY'],
+    { key: 'cs10', axis: 'Early game', label: 'CS a 10 minuti', fn: (g) => g.cs10, f: (v) => fmt(v, 0), skip: ['UTILITY'], skipWhy: 'un Support che gioca bene lascia i minion al suo ADC',
       formula: 'Minion di corsia + mostri della giungla uccisi nei primi 10 minuti', fields: 'challenges.laneMinionsFirst10Minutes, challenges.jungleCsBefore10Minutes',
       what: 'Quanti minion (e, per i jungler, mostri) uccidi nei primi 10 minuti, prima che la partita si apra.',
       meaning: 'Misura la fase di corsia ed è tra i parametri meno influenzati da come finisce la partita: riflette bene l\'abilità individuale. Insieme ai CS/min è quello che cambia di più da una lega all\'altra. Per i Support non si valuta.',
@@ -1161,7 +1162,8 @@
         'Un minuto prima di drago o Barone metti visione intorno all\'obiettivo e distruggi quella nemica.'],
       roleTips: { UTILITY: 'Dopo la missione del support passa all\'Oracolo (trinket rosso) e ripulisci la visione nemica intorno agli obiettivi.',
         JUNGLE: 'Mentre passi nella giungla nemica piazza una ward: ti dice dove si trova l\'altro jungler.' } },
-    { key: 'objm', biased: true, axis: 'Obiettivi', label: 'Danni a obiettivi/min', fn: (g) => g.objDmg / g.dur, f: (v) => fmt(v, 0),
+    { key: 'objm', biased: true, axis: 'Obiettivi', label: 'Danni a obiettivi/min', fn: (g) => g.objDmg / g.dur, f: (v) => fmt(v, 0), skip: ['UTILITY'],
+      skipWhy: 'per un Support i danni agli obiettivi dipendono dal tipo di campione più che da come gioca',
       formula: 'Danni a torri, inibitori, draghi, Barone, Araldo e Voidgrubs ÷ durata in minuti', fields: 'damageDealtToObjectives',
       what: 'I danni che fai a torri, inibitori e mostri epici, divisi per i minuti di gioco.',
       meaning: 'Dice quanto trasformi i vantaggi in obiettivi concreti, che sono ciò che fa vincere la partita. Per i jungler pesano molto i mostri epici, per chi sta in corsia soprattutto le torri.',
@@ -1228,7 +1230,8 @@
         g.scores[a.key] = p == null ? null : a.invert ? 100 - p : p;
         if (p != null) values.push(g.scores[a.key]);
       }
-      const raw = values.length >= MIN_SCORED_AXES ? avg(values) : null;
+      const minAxes = Math.min(MIN_SCORED_AXES, AXES.filter((a) => scoredFor(a, g.role)).length);   // Support: 4
+      const raw = values.length >= minAxes ? avg(values) : null;
       // con medie di lega vecchie (senza "score") resta la media semplice
       g.score = raw == null ? null : stats.score ? percentileOf(raw, stats.score.q) : raw;
     }
@@ -1670,7 +1673,7 @@
     const notes = [];
     if (a.invert) notes.push('Qui meno è meglio: il punteggio è invertito (100 = muori meno di tutti).');
     if (a.biased) notes.push('Chi vince tende ad avere valori più alti: una parte della differenza con il riferimento è un effetto del risultato, non la sua causa.');
-    if (a.skip) notes.push(`Non si valuta per i ${a.skip.map(roleLabel).join(', ')}: in quel ruolo un valore alto non indica una partita migliore.`);
+    if (a.skip) notes.push(`Non si valuta per i ${a.skip.map(roleLabel).join(', ')}: ${a.skipWhy}.`);
 
     $('sheet-body').replaceChildren(
       el('div', { class: 'sheet-head' }, icon(a.key), el('div', {}, el('h2', { id: 'sheet-title', text: a.axis }), el('div', { class: 'sub', style: 'margin:0', text: a.label }))),
@@ -1963,7 +1966,8 @@
         p(strong('Un parametro nel radar'), ': la media dei punteggi delle tue partite. In pratica: confrontando una tua partita a caso con una del riferimento, quante volte su 100 fai meglio tu.'),
         p('Accanto al punteggio trovi il tuo ', strong('valore tipico'), ' (la mediana: metà delle tue partite sta sopra, metà sotto) e quello del riferimento negli stessi ruoli. ',
           'Il colore segue il punteggio: verde da 50 in su, rosa sotto 50.'),
-        p(strong('Support'), ': CS/min e CS a 10 minuti non si valutano, perché un Support che gioca bene lascia i minion al suo ADC. Le partite da Support hanno quindi 6 parametri invece di 8.')),
+        p(strong('Support'), ': CS/min e CS a 10 minuti non si valutano, perché un Support che gioca bene lascia i minion al suo ADC. Non si valutano nemmeno danni ai campioni e agli obiettivi, che dipendono dal tipo di Support (tank, incantatore o mago) più che da come gioca. ',
+          'Le partite da Support hanno quindi 4 parametri: KDA, morti, partecipazione alle uccisioni e visione.')),
       section('Con chi ti confronti',
         p(strong('La tua lobby'), ': gli altri 9 giocatori di tutte le tue partite in archivio. Il matchmaking li sceglie con un MMR simile al tuo, quindi è il confronto più diretto con il tuo livello reale.'),
         p(strong('Leghe'), tiers.length ? ` (${tiers.join(', ')})` : '', ': per ogni lega si prende a caso un campione di giocatori dalla classifica ufficiale (divisioni III e II, il centro della lega; per Master+ la classifica Master) e alcune loro partite Ranked Solo/Duo recenti. Ogni partita conta tutti e 10 i partecipanti. ',
