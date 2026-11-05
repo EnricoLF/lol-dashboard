@@ -323,6 +323,10 @@
   .lvl-col.near .lvl-colbar { background: var(--gold-text); }
   .lvl-val { font: 600 12px var(--display); margin-bottom: 2px; }
   .lvl-name { font: 600 10.5px var(--display); text-transform: uppercase; color: var(--muted); height: 18px; line-height: 18px; }
+  .grade { display: inline-block; min-width: 20px; padding: 0 5px; border-radius: 4px; font: 700 12px/18px var(--display); text-align: center; color: #0e0d19; }
+  .grade.g-S { background: #f2c14e; } .grade.g-A { background: #45d3c3; } .grade.g-B { background: #8fa3c8; } .grade.g-C { background: #b08a9e; } .grade.g-D { background: #e0527c; }
+  .badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 4px; font: 700 10.5px/17px var(--display); letter-spacing: .06em; }
+  .badge.mvp { background: #f2c14e; color: #0e0d19; } .badge.ace { background: #6b97ea; color: #0e0d19; }
   .lvl-how { margin: 18px 0 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text-2); font-size: 13px; }
   .lvl-how summary { font: 600 12.5px var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--gold-text); }
   .lvl-how ol { margin: 10px 0 0; padding-left: 20px; line-height: 1.55; }
@@ -730,14 +734,15 @@
   // ---------------------------------------------------------------- filtri
   // Ogni account ricorda i suoi filtri
   let filters = {};
+  // Ogni account si apre sempre sulla stagione in corso, Solo e Duo insieme, tutti i ruoli e campioni.
+  // Dal browser si riprendono solo le preferenze di visualizzazione: lega di confronto e vista del radar.
   function loadFilters() {
     filters = { period: 'season', queue: 'all', role: 'all', champ: 'all' };
     try {
       const saved = JSON.parse(localStorage.getItem(`${STORE_KEY}:${DATA.slug}`) || '{}');
-      if (saved.v !== 2) delete saved.period;   // dal 5/11/2026 si parte dalla stagione in corso, anche con filtri salvati prima
-      Object.assign(filters, saved);
+      if (saved.bench) filters.bench = saved.bench;
+      if (saved.radar) filters.radar = saved.radar;
     } catch (e) { /* storage non disponibile */ }
-    filters.v = 2;
   }
 
   function setOptions(select, options, current) {
@@ -753,7 +758,7 @@
     seasonOption.textContent = DATA.season ? `Stagione in corso (${DATA.season.games})` : 'Stagione in corso';
     if (![...$('f-period').options].some((o) => o.value === filters.period && !o.disabled)) filters.period = 'all';   // es. vecchio filtro per giorni salvato
     $('f-period').value = filters.period;
-    setOptions($('f-queue'), [['all', 'Tutte'], ['Solo', 'Solo Queue'], ['Duo', 'Duo Queue'],
+    setOptions($('f-queue'), [['all', 'Solo + Duo'], ['Solo', 'Solo Queue'], ['Duo', 'Duo Queue'],
       ...DATA.partners.map((p) => ['p:' + p.name, 'Duo con ' + p.name])], filters.queue);
     setOptions($('f-role'), [['all', 'Tutti'], ...ROLE_ORDER.filter((r) => games.some((g) => g.role === r)).map((r) => [r, roleLabel(r)])], filters.role);
     setOptions($('f-champ'), [['all', 'Tutti'], ...byCount('champ').map(([c, n]) => [c, `${c} (${n})`])], filters.champ);
@@ -1106,16 +1111,17 @@
         'Nei teamfight colpisci il bersaglio più vicino che puoi raggiungere in sicurezza, invece di inseguire il carry nemico dietro la sua squadra.'],
       roleTips: { JUNGLE: 'Ganka le corsie in cui il tuo alleato tiene l\'ondata vicino alla sua torre e il nemico non ha il Flash.',
         UTILITY: 'Resta a portata del tuo ADC: da lì ogni sua uccisione diventa un tuo assist e le tue protezioni lo tengono vivo.' } },
-    { key: 'dpm', axis: 'Aggressività', label: 'Danni ai campioni/min', fn: (g) => g.dmg / g.dur, f: (v) => fmt(v, 0), skip: ['UTILITY'],
-      skipWhy: 'per un Support i danni dipendono dal tipo di campione (tank, incantatore o mago) più che da come gioca',
-      formula: 'Danni totali inflitti ai campioni nemici ÷ durata in minuti', fields: 'totalDamageDealtToChampions',
-      what: 'Tutti i danni (fisici, magici e puri) che infliggi ai campioni nemici, divisi per i minuti di gioco. Scudi e cure non contano.',
-      meaning: 'Misura la pressione che metti sugli avversari. Dividere per i minuti rende confrontabili partite corte e lunghe. Dipende molto dal campione: un tank o un support che protegge ne fa meno, ed è normale.',
-      tips: ['In corsia scambia colpi quando l\'avversario si avvicina a un minion per finirlo o ha appena usato la sua abilità principale.',
-        'Nei teamfight scegli una posizione da cui puoi colpire per tutto lo scontro: un carry eliminato nei primi secondi fa zero danni.',
-        'Completa il primo oggetto leggendario il prima possibile: è il salto di danni più grande della partita.'],
+    { key: 'impm', axis: 'Impatto', label: 'Impatto in combattimento', fn: (g) => impactRaw(g, benchRoles()[g.role]), f: (v) => fmt(v, 0),
+      formula: 'Il migliore tra tre percentili nel tuo ruolo: danni ai campioni al minuto, cure e scudi ai compagni al minuto, danni assorbiti al minuto. L\'indice va da 0 a 100',
+      fields: 'totalDamageDealtToChampions, totalHealsOnTeammates, totalDamageShieldedOnTeammates, damageSelfMitigated',
+      what: 'Quanto pesi negli scontri, nel modo in cui il tuo campione contribuisce: un carry con i danni, un incantatore con cure e scudi, un tank con i danni che assorbe al posto della squadra.',
+      meaning: 'Ognuno dei tre contributi diventa un percentile nel tuo ruolo e conta il migliore. Così un Leona che assorbe tantissimo e un Jinx che fa tantissimi danni hanno la stessa possibilità di un punteggio alto. Sommarli invece premierebbe sempre i tank, che assorbono decine di migliaia di danni.',
+      tips: ['Nei teamfight resta nella posizione da cui il tuo campione rende di più: i carry dietro, i tank davanti a prendere i colpi al posto della squadra.',
+        'Completa il primo oggetto importante il prima possibile: è il salto di rendimento più grande della partita, per danni, cure o resistenze.',
+        'Entra negli scontri insieme alla squadra: un contributo dato da solo, con i compagni lontani, si traduce raramente in un vantaggio.'],
       roleTips: { BOTTOM: 'Da ADC alterna attacchi base e movimento (kiting): gli attacchi base sono la maggior parte dei tuoi danni.',
-        UTILITY: 'Se giochi support che proteggono, i danni bassi sono normali: per te contano di più visione e partecipazione alle uccisioni.' } },
+        UTILITY: 'Da Support tank apri lo scontro quando i tuoi compagni possono seguirti; da incantatore tieni gli scudi per il compagno che viene attaccato.',
+        TOP: 'Da Top tank cerca gli scontri vicino agli obiettivi, dove puoi assorbire i danni mentre la squadra colpisce.' } },
     { key: 'kp', biased: true, axis: 'Teamplay', label: 'Kill participation', fn: (g) => g.kp, f: (v) => pct(v, 0),
       formula: '(Uccisioni + Assist) ÷ uccisioni totali della tua squadra', fields: 'kills, assists (tuoi e dei compagni)',
       what: 'La quota delle uccisioni della tua squadra a cui hai partecipato, con un\'uccisione o un assist.',
@@ -1162,17 +1168,26 @@
         'Un minuto prima di drago o Barone metti visione intorno all\'obiettivo e distruggi quella nemica.'],
       roleTips: { UTILITY: 'Dopo la missione del support passa all\'Oracolo (trinket rosso) e ripulisci la visione nemica intorno agli obiettivi.',
         JUNGLE: 'Mentre passi nella giungla nemica piazza una ward: ti dice dove si trova l\'altro jungler.' } },
-    { key: 'objm', biased: true, axis: 'Obiettivi', label: 'Danni a obiettivi/min', fn: (g) => g.objDmg / g.dur, f: (v) => fmt(v, 0), skip: ['UTILITY'],
-      skipWhy: 'per un Support i danni agli obiettivi dipendono dal tipo di campione più che da come gioca',
-      formula: 'Danni a torri, inibitori, draghi, Barone, Araldo e Voidgrubs ÷ durata in minuti', fields: 'damageDealtToObjectives',
-      what: 'I danni che fai a torri, inibitori e mostri epici, divisi per i minuti di gioco.',
-      meaning: 'Dice quanto trasformi i vantaggi in obiettivi concreti, che sono ciò che fa vincere la partita. Per i jungler pesano molto i mostri epici, per chi sta in corsia soprattutto le torri.',
+    { key: 'objp', biased: true, axis: 'Obiettivi', label: 'Partecipazione agli obiettivi', fn: (g) => g.objPart, f: (v) => pct(v, 0),
+      formula: '(Torri + draghi + Baroni a cui hai partecipato, con un colpo finale o un assist) ÷ torri + draghi + Baroni presi dalla tua squadra',
+      fields: 'turretTakedowns, challenges.dragonTakedowns, challenges.baronTakedowns, teams.objectives',
+      what: 'La quota degli obiettivi presi dalla tua squadra a cui hai partecipato: torri, draghi e Barone. I Voidgrubs restano fuori perché il conteggio di Riot per giocatore non torna con il totale della squadra.',
+      meaning: 'Gli obiettivi sono ciò che fa vincere la partita. Contare la partecipazione, e non i danni, vale per ogni ruolo: un Support che aiuta a prendere il drago conta quanto il jungler che dà il colpo finale.',
       tips: ['Dopo aver vinto uno scontro o spinto l\'ondata, colpisci la torre invece di tornare subito in base.',
-        'Fino a 14 minuti le torri esterne danno oro extra per ogni placca: colpiscile quando l\'avversario di corsia è in base o morto.',
-        'Con un vantaggio numerico prendi un obiettivo (drago, Araldo, torre) invece di inseguire i nemici nella loro giungla.'],
-      roleTips: { JUNGLE: 'Prendi draghi e Voidgrubs quando le corsie vicine hanno l\'ondata spinta e possono raggiungerti per prime.',
-        TOP: 'Da top, quando l\'avversario è in base, spingi l\'ondata e colpisci la torre: in corsia singola è il tuo modo principale di aiutare.' } },
+        'Controlla il timer di draghi e Barone (Tab) e raggiungi la squadra prima che compaiano.',
+        'Con un vantaggio numerico prendi un obiettivo invece di inseguire i nemici nella loro giungla.'],
+      roleTips: { JUNGLE: 'Prendi i draghi quando le corsie vicine hanno l\'ondata spinta e possono raggiungerti per prime.',
+        TOP: 'Da Top, quando l\'avversario è in base, spingi l\'ondata e colpisci la torre: in corsia singola è il tuo modo principale di aiutare.',
+        UTILITY: 'Da Support muoviti con il jungler verso il drago appena la tua corsia è ferma: anche un assist conta.' } },
   ];
+  // Indice di impatto: il migliore tra danni, cure e scudi, danni assorbiti, come percentile nel ruolo
+  // (stessa regola di impact_raw in lol_metrics.py)
+  function impactRaw(g, stats) {
+    if (!stats) return null;
+    const parts = [['dpm', g.dmg], ['hspm', g.allyHeal], ['mitpm', g.mitig]]
+      .filter(([k, v]) => v != null && stats[k] && stats[k].q).map(([k, v]) => percentileOf(v / g.dur, stats[k].q));
+    return parts.length ? Math.max(...parts) : null;
+  }
   const scoredFor = (a, role) => !(a.skip || []).includes(role);
   // Consigli da mostrare: prima quello del ruolo che giochi di piu', poi quelli generali
   const tipsFor = (a, role) => [...(a.roleTips && a.roleTips[role] ? [a.roleTips[role]] : []), ...a.tips];
@@ -1216,7 +1231,7 @@
   //  - parametro in una partita: percentile del tuo valore;
   //  - punteggio partita: percentile della media degli 8 parametri, calibrato sulle partite del riferimento;
   //  - punteggio di un parametro (radar): media dei punteggi partita per partita.
-  const MIN_SCORED_AXES = 6;
+  const MAX_MISSING_AXES = 2;   // un punteggio partita se mancano al massimo 2 parametri (stessa regola di lol_metrics.py)
   function scoreGames() {
     const roles = benchRoles();
     for (const g of games) {
@@ -1230,7 +1245,7 @@
         g.scores[a.key] = p == null ? null : a.invert ? 100 - p : p;
         if (p != null) values.push(g.scores[a.key]);
       }
-      const minAxes = Math.min(MIN_SCORED_AXES, AXES.filter((a) => scoredFor(a, g.role)).length);   // Support: 4
+      const minAxes = AXES.filter((a) => scoredFor(a, g.role)).length - MAX_MISSING_AXES;   // 6 su 8, Support 4 su 6
       const raw = values.length >= minAxes ? avg(values) : null;
       // con medie di lega vecchie (senza "score") resta la media semplice
       g.score = raw == null ? null : stats.score ? percentileOf(raw, stats.score.q) : raw;
@@ -1244,6 +1259,10 @@
       ref: avg(sg.map((g) => roles[g.role][a.key].q[10])), n: sg.length };
   }
   const scoreTone = (score) => (score == null ? '' : score >= 50 ? 'good' : 'bad');
+  // Voto della partita, come quelli di Riot: S dal 90, A dal 70, B dal 40, C dal 20, D sotto (B = partita tipica)
+  const GRADES = [[90, 'S'], [70, 'A'], [40, 'B'], [20, 'C'], [0, 'D']];
+  const gradeOf = (score) => (score == null ? null : GRADES.find(([min]) => score >= min)[1]);
+  const gradeChip = (score) => (score == null ? '–' : el('span', { class: `grade g-${gradeOf(score)}`, text: gradeOf(score), title: `Punteggio partita ${fmt(score, 0)}` }));
   // Win rate nelle partite migliori vs peggiori della tua mediana (escluse quelle uguali alla mediana)
   function winImpact(gs, k) {
     const vals = gs.map((g) => [g, k.fn(g)]).filter(([, v]) => v != null);
@@ -1283,6 +1302,8 @@
     deaths10: 'M12 3l7 3v5.5c0 4.6-3 8-7 9.5-4-1.5-7-4.9-7-9.5V6l7-3zM9 12l2 2 4-4',
     vspm: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
     objm: 'M6 21h12M8 21v-9h8v9M7 12V5h2.5v2h1.5V5h2v2h1.5V5H17v7M11 21v-3h2v3',
+    objp: 'M6 21h12M8 21v-9h8v9M7 12V5h2.5v2h1.5V5h2v2h1.5V5H17v7M11 21v-3h2v3',
+    impm: 'M12 3c.5 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2.6 1.5-4 2.5-5.5.3 1.6 1 2.6 2 3 .8-2.3.5-5.3.5-8z',
     pingTotal: 'M12 12h.01M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8',
     pingWarn: 'M12 4l9 16H3l9-16zM12 10v4M12 17h.01',
     pingHelp: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6',
@@ -1575,7 +1596,7 @@
         li(b('Partite: '), `le ${lv.games} partite ${lv.scope === 'season' ? 'della stagione in corso' : 'più recenti'} da ${role}, il ruolo che giochi di più.`,
           others ? ` Le altre ${others}, in altri ruoli, non contano: mescolare i ruoli abbasserebbe la stima di chi gioca bene il suo ruolo e peggio quelli secondari.` : ''),
         li(b('Parametri: '), `solo quelli che da ${role} cambiano davvero da una lega all'altra: ${listText(keys.map((k) => axisByKey(k).label))}. `,
-          'KDA, morti e danni restano quasi uguali da Iron a Master+, perché ogni uccisione è la morte di qualcun altro: dicono come giochi rispetto agli avversari, non in che lega saresti.'),
+          'KDA, morti, impatto e obiettivi restano quasi uguali da Iron a Master+ (ogni uccisione è la morte di qualcun altro, ogni torre presa è persa da qualcuno): dicono come giochi rispetto agli altri giocatori della partita, non in che lega saresti. Per questo contano nel confronto con i compagni qui sotto.'),
         li(b('Confronto con ogni lega: '), `ogni tua partita viene confrontata con i ${role} di ogni lega (circa 500 prestazioni per lega e ruolo).`,
           ex && you != null && sample.length ? ` Esempio, ${ex.label}: il tuo valore tipico è ${ex.f(you)}, il ${role} tipico fa ${listText(sample)}.` : ''),
         li(b('Punteggio per lega: '), 'per ogni lega si calcola quante volte su 100 fai meglio di un suo giocatore. Salendo di lega il punteggio scende: ',
@@ -1590,10 +1611,17 @@
 
   // ---------------------------------------------------------------- posizione nella squadra (segue i filtri)
   // teamRank e' calcolato dallo script: i 5 compagni ordinati per punteggio partita, ognuno nel suo ruolo
+  // Distribuzione dei voti S-D nel filtro (dal punteggio partita rispetto al riferimento scelto)
+  function gradesRow(gs) {
+    const scored = gs.filter((g) => g.score != null);
+    const parts = GRADES.map(([, gr]) => [gr, scored.filter((g) => gradeOf(g.score) === gr).length]);
+    return el('div', { class: 'stat' }, el('span', { text: 'Voti (S / A / B / C / D)' }),
+      el('span', {}, ...parts.flatMap(([gr, n], i) => [i ? document.createTextNode(' ') : null, el('span', { class: `grade g-${gr}`, text: gr }), document.createTextNode(` ${scored.length ? Math.round((n / scored.length) * 100) : 0}%`)]).filter(Boolean)));
+  }
   function renderTeam(gs) {
     const tg = gs.filter((g) => g.teamRank != null);
     $('team-sub').textContent = `In ogni partita i 5 giocatori della tua squadra vengono ordinati per punteggio partita: tutti gli 8 parametri del radar, ognuno confrontato con il proprio ruolo. `
-      + `Tra compagni il risultato è lo stesso, quindi vittoria o sconfitta non falsano il confronto. ${tg.length} partite nel filtro.`;
+      + `Tra compagni il risultato è lo stesso, quindi vittoria o sconfitta non falsano il confronto. Come su OP.GG: MVP = migliore della squadra che vince, ACE = migliore di quella che perde. ${tg.length} partite nel filtro.`;
     if (tg.length < MIN_GAMES) {
       $('team-stats').replaceChildren(el('p', { class: 'empty', text: `Servono almeno ${MIN_GAMES} partite nel filtro corrente.` }));
       $('team-bars').replaceChildren();
@@ -1609,7 +1637,10 @@
       stat('Compagni superati', pct(beat, 0), scoreTone(beat * 100)),
       stat('Migliore della squadra (atteso 20%)', pct(best, 0), best > 0.2 ? 'good' : best < 0.2 ? 'bad' : ''),
       stat('Posizione nelle vittorie / sconfitte', wins.length && losses.length ? `${fmt(avg(wins.map((g) => g.teamRank)), 1)}° / ${fmt(avg(losses.map((g) => g.teamRank)), 1)}°` : '–'),
-      stat('Sconfitte da migliore della squadra', `${losses.filter((g) => g.teamRank === 1).length} su ${losses.length}`));
+      stat('Sconfitte da migliore della squadra', `${losses.filter((g) => g.teamRank === 1).length} su ${losses.length}`),
+      stat('Posizione media su 10 giocatori', tg.some((g) => g.rank10 != null) ? `${fmt(avg(tg.filter((g) => g.rank10 != null).map((g) => g.rank10)), 1)}°` : '–'),
+      stat('MVP / ACE', `${tg.filter((g) => g.badge === 'MVP').length} / ${tg.filter((g) => g.badge === 'ACE').length}`),
+      gradesRow(gs));
     barList($('team-bars'), [1, 2, 3, 4, 5].map((r) => ({ label: `${r}° in squadra`, games: tg.filter((g) => g.teamRank === r) })),
       'Nessuna partita nel filtro corrente.');
   }
@@ -1966,8 +1997,7 @@
         p(strong('Un parametro nel radar'), ': la media dei punteggi delle tue partite. In pratica: confrontando una tua partita a caso con una del riferimento, quante volte su 100 fai meglio tu.'),
         p('Accanto al punteggio trovi il tuo ', strong('valore tipico'), ' (la mediana: metà delle tue partite sta sopra, metà sotto) e quello del riferimento negli stessi ruoli. ',
           'Il colore segue il punteggio: verde da 50 in su, rosa sotto 50.'),
-        p(strong('Support'), ': CS/min e CS a 10 minuti non si valutano, perché un Support che gioca bene lascia i minion al suo ADC. Non si valutano nemmeno danni ai campioni e agli obiettivi, che dipendono dal tipo di Support (tank, incantatore o mago) più che da come gioca. ',
-          'Le partite da Support hanno quindi 4 parametri: KDA, morti, partecipazione alle uccisioni e visione.')),
+        p(strong('Support'), ': CS/min e CS a 10 minuti non si valutano, perché un Support che gioca bene lascia i minion al suo ADC. Gli altri 6 parametri sono gli stessi di tutti i ruoli: l\'impatto in combattimento conta il contributo migliore tra danni, cure e scudi, danni assorbiti, così un Support tank o incantatore non è penalizzato rispetto a un mago.')),
       section('Con chi ti confronti',
         p(strong('La tua lobby'), ': gli altri 9 giocatori di tutte le tue partite in archivio. Il matchmaking li sceglie con un MMR simile al tuo, quindi è il confronto più diretto con il tuo livello reale.'),
         p(strong('Leghe'), tiers.length ? ` (${tiers.join(', ')})` : '', ': per ogni lega si prende a caso un campione di giocatori dalla classifica ufficiale (divisioni III e II, il centro della lega; per Master+ la classifica Master) e alcune loro partite Ranked Solo/Duo recenti. Ogni partita conta tutti e 10 i partecipanti. ',
@@ -1981,7 +2011,8 @@
           + 'Con "Tutto lo storico" vedi anche le stagioni precedenti in archivio.' : 'Questo account non ha ancora partite Ranked Solo/Duo nella stagione in corso.')),
       section('Punteggio partita e costanza',
         p(strong('Punteggio partita'), ': tutti i parametri di quella partita insieme (servono almeno 6 parametri disponibili). Si fa la media dei loro punteggi e la si confronta con la stessa media calcolata sulle partite del riferimento: ',
-          '70 significa che quella partita è stata migliore del 70% delle partite del riferimento nello stesso ruolo. È il modo più rapido per capire se hai giocato bene indipendentemente dal risultato.'),
+          '70 significa che quella partita è stata migliore del 70% delle partite del riferimento nello stesso ruolo. È il modo più rapido per capire se hai giocato bene indipendentemente dal risultato. ',
+          'Il ', strong('voto'), ' lo traduce in lettere, come quelli di Riot: S da 90, A da 70, B da 40 (la partita tipica), C da 20, D sotto.'),
         p(strong('Costanza'), ': la deviazione standard dei punteggi partita. Come termine di paragone, le partite di tutto il riferimento messe insieme hanno circa ±29: più sei sotto, più sei regolare; intorno a ±30 alterni partite molto alte e molto basse.')),
       section('Il tuo livello',
         p('La ', strong('lega più vicina'), ' è quella in cui saresti il giocatore tipico. Si usano solo le partite della stagione nel tuo ', strong('ruolo principale'), ' (quello che giochi di più): mescolare i ruoli abbasserebbe la stima di chi gioca bene il suo ruolo e peggio quelli secondari. ',
@@ -1990,7 +2021,8 @@
           'KDA, morti, danni e danni agli obiettivi restano quasi uguali da Iron a Master+, perché ogni uccisione è la morte di qualcun altro: confrontarli con un\'altra lega non dice nulla sul livello.'),
         p(strong('Intervallo probabile'), ': ricampionando le tue partite 300 volte, la stima cade in questo intervallo 8 volte su 10.'),
         p(strong('Posizione nella squadra'), ': in ogni partita i 5 compagni vengono ordinati per punteggio partita, che usa tutti gli 8 parametri del radar (ognuno nel proprio ruolo). ',
-          'Tra compagni il risultato è lo stesso, quindi una sconfitta non abbassa la tua posizione se i compagni hanno fatto peggio di te. Superare più del 50% dei compagni vuol dire giocare meglio dei giocatori del tuo MMR.'),
+          'Tra compagni il risultato è lo stesso, quindi una sconfitta non abbassa la tua posizione se i compagni hanno fatto peggio di te. Superare più del 50% dei compagni vuol dire giocare meglio dei giocatori del tuo MMR. ',
+          'Come su OP.GG ci sono anche la posizione tra tutti e 10 i giocatori della partita e i titoli ', strong('MVP'), ' (migliore della squadra che vince) e ', strong('ACE'), ' (migliore di quella che perde).'),
         p(strong('Sopra / sotto il tuo rank'), ': due misure, un punto ciascuna. Farm: +1 se tutto l\'intervallo sta sopra il tuo rank, −1 se sta tutto sotto, 0 altrimenti. ',
           'Compagni: +1 se superi più del 50% dei compagni anche nel caso peggiore dell\'intervallo, −1 se meno del 50% anche nel caso migliore, 0 altrimenti. Somma positiva = sopra, negativa = sotto, zero = in linea.'),
         p('La stima guarda i numeri, non le decisioni: chi gioca bene la mappa o fa le scelte giuste negli scontri può avere un rank più alto delle sue statistiche.')),
@@ -2179,14 +2211,16 @@
   function renderRecent(gs) {
     const rows = gs.slice(-20).reverse().map((g) => ({
       cells: [dateLabel(g.ts, true), champIcon(g.champ), roleLabel(g.role), g.oppChamp ? champIcon(g.oppChamp) : '–', laneCell(g), g.teamRank == null ? '–' : el('span', { class: g.teamRank <= 2 ? 'good' : g.teamRank >= 4 ? 'bad' : '', text: `${g.teamRank}°`, title: `${g.teamRank}° su 5 nella tua squadra per punteggio partita` }),
+        g.rank10 == null ? '–' : el('span', { title: `${g.rank10}° su 10 nella partita${g.badge ? ` · ${g.badge === 'MVP' ? 'migliore della squadra vincente' : 'migliore della squadra perdente'}` : ''}` },
+          document.createTextNode(`${g.rank10}°`), g.badge ? el('span', { class: `badge ${g.badge.toLowerCase()}`, text: g.badge }) : null),
         el('span', { class: 'result' + (g.win ? ' win' : ''), text: g.win ? 'Vittoria' : 'Sconfitta' }), g.lp == null ? '–' : tone(g.lp),
-        `${g.k}/${g.d}/${g.a}`, fmt((g.k + g.a) / Math.max(1, g.d), 2), g.score == null ? '–' : fmt(g.score, 0), `${g.cs} (${fmt(g.cs / g.dur, 1)})`,
+        `${g.k}/${g.d}/${g.a}`, fmt((g.k + g.a) / Math.max(1, g.d), 2), g.score == null ? '–' : el('span', {}, document.createTextNode(`${fmt(g.score, 0)} `), gradeChip(g.score)), `${g.cs} (${fmt(g.cs / g.dur, 1)})`,
         pct(g.kp, 0), fmt(g.dmg / g.dur, 0), `${Math.floor(g.dur)}:${String(Math.round((g.dur % 1) * 60)).padStart(2, '0')}`,
         g.queue === 'Duo' ? `Duo con ${g.partners.join(', ')}` : 'Solo'],
     }));
     const host = $('recent');
     if (!rows.length) { host.replaceChildren(el('p', { class: 'empty', text: 'Nessuna partita nel filtro corrente.' })); return; }
-    host.replaceChildren(table(['Data', 'Campione', 'Ruolo', 'Contro', 'Corsia', 'Squadra', 'Esito', 'LP', 'K/D/A', 'KDA', 'Punteggio', 'CS (/min)', 'KP', 'Danni/min', 'Durata', 'Coda'], rows, { leftCols: [1, 2, 3, 4, 5, 6, 15] }));
+    host.replaceChildren(table(['Data', 'Campione', 'Ruolo', 'Contro', 'Corsia', 'Squadra', 'Partita', 'Esito', 'LP', 'K/D/A', 'KDA', 'Punteggio', 'CS (/min)', 'KP', 'Danni/min', 'Durata', 'Coda'], rows, { leftCols: [1, 2, 3, 4, 5, 6, 7, 16] }));
   }
 
   // ---------------------------------------------------------------- render

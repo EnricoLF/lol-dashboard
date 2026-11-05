@@ -16,7 +16,7 @@ from __future__ import annotations
 import random
 from collections import Counter
 
-from lol_metrics import ROLES, INVERTED, axis_score, percentile_of, raw_game_score, scored_axes
+from lol_metrics import ROLES, INVERTED, percentile_of, raw_game_score, row_axis_score, scored_axes
 
 TIER_ORDER = ("IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER")
 TIER_NAMES = {"IRON": "Iron", "BRONZE": "Bronze", "SILVER": "Silver", "GOLD": "Gold", "PLATINUM": "Platinum",
@@ -139,7 +139,7 @@ def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: 
         line = []
         for tier in TIER_ORDER:
             role_stats = tiers[tier]["roles"].get(row["role"], {})
-            scores = [s for k in keys if (s := axis_score(k, row.get(k), role_stats)) is not None]
+            scores = [s for k in keys if (s := row_axis_score(k, row, role_stats)) is not None]
             line.append(sum(scores) / len(scores) if scores else None)
         if None not in line:
             matrix.append(line)
@@ -191,7 +191,7 @@ def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: 
     axis_levels = {}
     for key in axes_by_role[main_role]:
         lines = [line for row in rows
-                 if None not in (line := [axis_score(key, row.get(key), tiers[t]["roles"].get(main_role, {})) for t in TIER_ORDER])]
+                 if None not in (line := [row_axis_score(key, row, tiers[t]["roles"].get(main_role, {})) for t in TIER_ORDER])]
         if len(lines) >= MIN_GAMES // 2:
             pos, axis_bound = crossing(curve_of(lines))
             axis_levels[key] = {"position": round(pos, 2), "bound": axis_bound, "games": len(lines), **position_label(pos)}

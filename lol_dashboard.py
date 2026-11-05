@@ -55,7 +55,8 @@ from lol_duo_analyzer import (
     parse_riot_id,
 )
 from lol_level import estimate_level
-from lol_metrics import PING_TYPES, build_distribution, cs_at_10, participant_metrics, ping_counts, team_positions
+from lol_metrics import (PING_TYPES, ally_protection, build_distribution, cs_at_10, objective_share, participant_metrics,
+                         ping_counts, team_positions)
 
 CACHE_DIR = SCRIPT_DIR / ".cache_matches"
 ENV_FILE = SCRIPT_DIR / ".env"
@@ -354,6 +355,8 @@ def extract_extras(match: dict, puuid: str) -> dict:
         "wards": me.get("wardsPlaced", 0),
         "ctrl": me.get("detectorWardsPlaced", 0),
         "objDmg": me.get("damageDealtToObjectives", 0),
+        "allyHeal": ally_protection(me),          # cure e scudi ai compagni (impatto in combattimento)
+        "objPart": objective_share(info, me),     # partecipazione a torri, draghi e Baroni
         "turrets": me.get("turretTakedowns", 0),
         "dead": me.get("totalTimeSpentDead", 0),
         "dbl": me.get("doubleKills", 0),
@@ -532,8 +535,13 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
     # Posizione nella squadra (1 = il migliore dei 5), rispetto alle distribuzioni della lobby
     team_pos = team_positions(matches, puuid, lobby["roles"])
     for game in games:
-        if game["id"] in team_pos:
-            game["teamRank"] = team_pos[game["id"]]["rank"]
+        position = team_pos.get(game["id"])
+        if position:
+            game["teamRank"] = position["rank"]
+            if "rank10" in position:
+                game["rank10"] = position["rank10"]
+            if "badge" in position:
+                game["badge"] = position["badge"]
 
     history = lp_history.get(key, [])
     end_times = {m["metadata"].get("matchId"): m["info"].get("gameEndTimestamp") for m in matches}
