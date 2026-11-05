@@ -11,7 +11,9 @@ name: Aggiorna dashboard
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # GitHub non garantisce l'orario: le esecuzioni possono slittare di qualche minuto
+    # Ogni 15 minuti, ma fuori dai minuti piu' affollati (inizio ora e quarti d'ora), che GitHub puo'
+    # ritardare o saltare. L'orario comunque non e' garantito: le esecuzioni possono slittare.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:          # pulsante "Run workflow" per aggiornare subito
 
 concurrency:
