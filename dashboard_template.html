@@ -323,7 +323,11 @@
   .lvl-col.near .lvl-colbar { background: var(--gold-text); }
   .lvl-val { font: 600 12px var(--display); margin-bottom: 2px; }
   .lvl-name { font: 600 10.5px var(--display); text-transform: uppercase; color: var(--muted); height: 18px; line-height: 18px; }
-  .lvl-how { margin: 18px 0 0; }
+  .lvl-how { margin: 18px 0 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text-2); font-size: 13px; }
+  .lvl-how summary { font: 600 12.5px var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--gold-text); }
+  .lvl-how ol { margin: 10px 0 0; padding-left: 20px; line-height: 1.55; }
+  .lvl-how li + li { margin-top: 5px; }
+  .lvl-how strong { color: var(--text); }
 
   /* Scheda dettagliata di un parametro */
   .sheet { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 26px 28px 22px; border: 1px solid var(--line); border-radius: 10px;
@@ -1425,23 +1429,15 @@
   const axisByKey = (k) => AXES.find((a) => a.key === k);
   // Posizione sulla scala delle leghe (0 = centro di Iron ... 7 = Master+) -> percentuale della barra
   const ladderPct = (p) => `${((Math.min(7.5, Math.max(-0.5, p)) + 0.5) / 8) * 100}%`;
-  // Distanza dal rank: in divisioni fino a 3, poi in leghe (una lega = 4 divisioni)
+  // Distanza dal rank: in divisioni fino a 3, poi in leghe arrotondate alla mezza (una lega = 4 divisioni)
   const divisionsText = (gap) => {
     const n = Math.round(Math.abs(gap) * 4);
-    if (n >= 6) return `${Math.round(n / 4)} leghe`;
-    if (n >= 4) return 'una lega';
-    return n === 1 ? 'una divisione' : `${n} divisioni`;
+    if (n < 4) return n === 1 ? 'una divisione' : `${n} divisioni`;
+    const half = Math.max(1, Math.round(Math.abs(gap) * 2) / 2), whole = Math.floor(half);
+    return `${whole === 1 ? 'una lega' : `${whole} leghe`}${half > whole ? ' e mezza' : ''}`;
   };
   // Parametri usati per la stima, raggruppati per ruolo: "Top e Mid: CS/min, CS a 10 min"
-  function levelAxesText(byRole, roles) {
-    const groups = new Map();
-    for (const role of ROLE_ORDER.filter((r) => roles.includes(r) && byRole[r])) {
-      const text = byRole[role].map((k) => axisByKey(k).label).join(', ') || 'nessuno';
-      groups.set(text, [...(groups.get(text) || []), roleLabel(role)]);
-    }
-    const list = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}` : xs[0]);
-    return [...groups].map(([text, rs]) => `${list(rs)}: ${text}`).join(' · ');
-  }
+  const listText = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}` : xs[0] || 'nessuno');
   function renderLevel() {
     const lv = DATA.level, host = $('level');
     if (!lv) {
@@ -1449,8 +1445,9 @@
       host.replaceChildren(el('p', { class: 'empty', text: 'Servono almeno 20 partite e le medie di tutte le leghe per stimare il livello.' }));
       return;
     }
-    const seasonGames = DATA.season ? games.filter((g) => g.ts >= DATA.season.start) : games;
-    $('level-sub').textContent = `${lv.scope === 'season' ? 'Stagione in corso' : 'Ultime 100 partite'} · ${lv.games} partite, tutti i ruoli. Non dipende dai filtri.`;
+    const others = lv.totalGames - lv.games;
+    $('level-sub').textContent = `${lv.scope === 'season' ? 'Stagione in corso' : 'Ultime 100 partite'} · ${lv.games} partite da ${roleLabel(lv.role)}, il tuo ruolo principale`
+      + `${others ? ` (le altre ${others} partite, in altri ruoli, non contano)` : ''}. Non dipende dai filtri.`;
     const rank = DATA.rank && TIERS.includes(DATA.rank.tier) ? DATA.rank : null;
     const VERDICT = {
       above: ['good', 'Sopra il tuo rank', `Le tue prestazioni sono circa ${divisionsText(lv.gap)} sopra il tuo rank: se le mantieni, è probabile che tu salga.`],
@@ -1503,7 +1500,7 @@
 
     host.replaceChildren(el('div', { class: 'level' },
       el('div', { class: 'lvl-main' },
-        el('div', { class: 'lvl-head' }, el('div', {}, el('span', { class: 'lvl-kicker', text: 'Lega più vicina alle tue prestazioni' }),
+        el('div', { class: 'lvl-head' }, el('div', {}, el('span', { class: 'lvl-kicker', text: `Lega più vicina alle tue prestazioni da ${roleLabel(lv.role)}` }),
           el('div', { class: 'lvl-big', text: lv.label })), el('span', { class: `verdict-tag ${cls}`, text: tag })),
         el('p', { class: 'lvl-text', text }),
         scale,
@@ -1514,10 +1511,50 @@
         el('div', { class: 'stats', style: 'margin-top:12px' },
           stat(ownTier ? `Contro ${iGli(lv.ownTier)} ${ownTier} (la tua lega)` : 'Contro la tua lega', scoreSpan(lv.scoreOwnTier), 'Punteggio medio delle tue partite, tutti gli 8 parametri'),
           stat('Contro la tua lobby (MMR simile)', scoreSpan(lv.scoreLobby), 'Gli altri 9 giocatori delle tue partite: il confronto più diretto con il tuo MMR')))),
-      el('p', { class: 'sub lvl-how' },
-        `Come si stima: per ogni lega si calcola il punteggio che avresti se le tue partite fossero confrontate con i giocatori di quella lega, nello stesso ruolo. `
-        + `La lega più vicina è quella in cui scendi a 50, cioè dove saresti il giocatore tipico. Si usano solo i parametri che cambiano davvero da una lega all'altra: `
-        + `${levelAxesText(lv.axesByRole, [...new Set(seasonGames.map((g) => g.role))])}. KDA, morti e danni sono quasi uguali in tutte le leghe, perché ogni uccisione è la morte di qualcun altro.`));
+      levelHowTo(lv, rank));
+  }
+
+  // Spiegazione passo per passo, con i numeri dell'account: chiunque guardi la pagina capisce da dove
+  // viene il livello. Aperta di default.
+  function levelHowTo(lv, rank) {
+    const role = roleLabel(lv.role);
+    const keys = lv.axesByRole[lv.role] || [];
+    const b = (t) => el('strong', { text: t });
+    const li = (...parts) => el('li', {}, ...parts.map((x) => (typeof x === 'string' ? document.createTextNode(x) : x)));
+    // Esempio concreto: il primo parametro usato, tuo valore tipico contro il valore tipico di alcune leghe
+    const ex = axisByKey(['cs10', 'vspm', 'csm'].find((k) => keys.includes(k)) || keys[0]);
+    const pool = (DATA.season && lv.scope === 'season' ? games.filter((g) => g.ts >= DATA.season.start) : games.slice(-100)).filter((g) => g.role === lv.role);
+    const you = ex ? median(pool.map(ex.fn).filter((v) => v != null)) : null;
+    const near = Math.min(6, Math.max(1, Math.round(lv.position)));
+    const sample = ex ? LEVEL_TIERS.slice(near - 1, near + 2).filter((t) => BENCH[t] && BENCH[t].roles[lv.role] && BENCH[t].roles[lv.role][ex.key])
+      .map((t) => `${ex.f(BENCH[t].roles[lv.role][ex.key].q[10])} ${startsWithVowel(t) ? 'negli' : 'nei'} ${tierName(t)}`) : [];
+    // le due leghe tra cui il punteggio scende sotto 50
+    const curve = LEVEL_TIERS.map((t) => [t, lv.curve[t]]);
+    const cross = curve.findIndex(([, v], i) => i < curve.length - 1 && v >= 50 && curve[i + 1][1] < 50);
+    const crossText = lv.bound === 'max' ? `resta sopra 50 anche contro i Master+, quindi il livello è Master+ o superiore`
+      : lv.bound === 'min' ? `è sotto 50 già contro gli Iron, quindi il livello è Iron o inferiore`
+      : cross >= 0 ? `scende sotto 50 tra ${tierName(curve[cross][0])} (${fmt(curve[cross][1], 0)}) e ${tierName(curve[cross + 1][0])} (${fmt(curve[cross + 1][1], 0)}): la stima è ${lv.label}`
+      : `passa per 50 vicino a ${lv.label}`;
+    const others = lv.totalGames - lv.games;
+    const verdictText = !rank || lv.rankPosition == null ? 'Senza un rank in Solo/Duo non si può confrontare.'
+      : lv.verdict === 'above' ? `il tuo rank (${rankName(rank)}) è sotto tutto l'intervallo: per questo il giudizio è "sopra il tuo rank".`
+      : lv.verdict === 'below' ? `il tuo rank (${rankName(rank)}) è sopra tutto l'intervallo: per questo il giudizio è "sotto il tuo rank".`
+      : `il tuo rank (${rankName(rank)}) cade dentro l'intervallo (o a meno di una divisione): per questo il giudizio è "in linea".`;
+    return el('details', { class: 'lvl-how', open: '' },
+      el('summary', { text: 'Come si calcola questo livello' }),
+      el('ol', {},
+        li(b('Partite: '), `le ${lv.games} partite ${lv.scope === 'season' ? 'della stagione in corso' : 'più recenti'} da ${role}, il ruolo che giochi di più.`,
+          others ? ` Le altre ${others}, in altri ruoli, non contano: mescolare i ruoli abbasserebbe la stima di chi gioca bene il suo ruolo e peggio quelli secondari.` : ''),
+        li(b('Parametri: '), `solo quelli che da ${role} cambiano davvero da una lega all'altra: ${listText(keys.map((k) => axisByKey(k).label))}. `,
+          'KDA, morti e danni restano quasi uguali da Iron a Master+, perché ogni uccisione è la morte di qualcun altro: dicono come giochi rispetto agli avversari, non in che lega saresti.'),
+        li(b('Confronto con ogni lega: '), `ogni tua partita viene confrontata con i ${role} di ogni lega (circa 500 prestazioni per lega e ruolo).`,
+          ex && you != null && sample.length ? ` Esempio, ${ex.label}: il tuo valore tipico è ${ex.f(you)}, il ${role} tipico fa ${listText(sample)}.` : ''),
+        li(b('Punteggio per lega: '), 'per ogni lega si calcola quante volte su 100 fai meglio di un suo giocatore. Salendo di lega il punteggio scende: ',
+          LEVEL_TIERS.map((t) => `${tierName(t)} ${fmt(lv.curve[t], 0)}`).join(', '), ' (lo vedi anche nel grafico qui sopra).'),
+        li(b('Lega più vicina: '), `è quella in cui saresti il giocatore tipico, cioè dove il punteggio vale 50. Il tuo punteggio ${crossText}.`),
+        li(b('Incertezza: '), `rifacendo il calcolo 300 volte su campioni diversi delle tue partite, il risultato cade tra ${lv.lowLabel} e ${lv.highLabel} 8 volte su 10.`),
+        li(b('Giudizio: '), verdictText)),
+      el('p', { class: 'sub', style: 'margin:8px 0 0', text: 'Non misura decisioni, gestione della mappa e comunicazione, che contano ma non si leggono nelle statistiche di Riot.' }));
   }
 
   // ---------------------------------------------------------------- scheda dettagliata di un parametro
@@ -1528,16 +1565,15 @@
     const roleGames = gs.filter((g) => g.role === role);
     const youRole = median(roleGames.map(a.fn).filter((v) => v != null));
     const scored = role && scoredFor(a, role);
+    const lvRole = DATA.level ? DATA.level.role : null;
     const level = DATA.level && DATA.level.axisLevels ? DATA.level.axisLevels[a.key] : null;
-    const roleLevel = DATA.level && DATA.level.axisLevelsByRole && DATA.level.axisLevelsByRole[role] ? DATA.level.axisLevelsByRole[role][a.key] : null;
     const section = (title, ...parts) => el('section', {}, el('h3', { text: title }), ...parts);
     const para = (...parts) => el('p', {}, ...parts.map((x) => (typeof x === 'string' ? document.createTextNode(x) : x)));
     const bound = (lv) => (lv.bound === 'max' ? ' o più (sopra la media anche dei Master+)' : lv.bound === 'min' ? ' o meno (sotto la media anche degli Iron)' : '');
-    // Livello nel ruolo mostrato dalla scala qui sotto, e su tutti i ruoli se diverso (stagione in corso)
-    const levelPara = (byRole, all) => para(...(byRole
-      ? [`Da ${roleLabel(role)}, in questo parametro giochi come un `, el('strong', { text: byRole.label }), `${bound(byRole)} (${byRole.games} partite della stagione), cioè la lega in cui saresti il giocatore tipico.`,
-        ...(all && all.label !== byRole.label ? [' Contando tutti i ruoli che giochi: ', el('strong', { text: all.label }), '.'] : [])]
-      : ['Stagione in corso, tutti i ruoli: in questo parametro giochi come un ', el('strong', { text: all.label }), `${bound(all)}, cioè la lega in cui saresti il giocatore tipico.`]));
+    // Il livello si calcola nel ruolo principale; se il filtro mostra un altro ruolo lo si dice
+    const levelPara = (lv) => para(`Da ${roleLabel(lvRole)}, il tuo ruolo principale, in questo parametro giochi come un `, el('strong', { text: lv.label }),
+      `${bound(lv)} (${lv.games} partite), cioè la lega in cui saresti il giocatore tipico.`
+      + (role !== lvRole ? ` La scala qui sotto mostra invece le partite da ${roleLabel(role)} del filtro attuale.` : ''));
     const better = (x, y) => (a.invert ? x < y : x > y);
 
     // Valore tipico per lega nel ruolo principale, con il tuo valore come linea verticale
@@ -1592,8 +1628,8 @@
             : para(`Confrontando una tua partita con quella di ${benchPlayer()} nello stesso ruolo, fai meglio tu `, el('strong', { text: `${Math.round(s.score)} volte su 100` }), '. 50 = giocatore tipico.'),
           s.score == null ? null : para(`Il tuo valore tipico: `, el('strong', { text: a.f(s.you) }), ` · tipico ${benchOf()}: `, el('strong', { text: a.f(s.ref) }), ` · ${s.n} partite valutate.`))),
       section('Livello di questo parametro',
-        roleLevel || level ? levelPara(roleLevel, level)
-          : para(scored === false ? '–' : 'Non indica la lega: nel tuo ruolo il giocatore tipico ha più o meno lo stesso valore da Iron a Master+. Serve a capire come giochi rispetto ai tuoi avversari, non il tuo livello.'),
+        level ? levelPara(level)
+          : para(scored === false ? '–' : `Non indica la lega: da ${roleLabel(lvRole || role)} il giocatore tipico ha più o meno lo stesso valore da Iron a Master+. Serve a capire come giochi rispetto ai tuoi avversari, non il tuo livello.`),
         ladder ? el('h3', { class: 'mini', text: `Valore tipico per lega · ${roleLabel(role)}${youRole != null ? ` (tu: ${a.f(youRole)} in ${roleGames.length} partite)` : ''}` }) : null,
         ladder, target),
       section('Cosa misura', para(a.what)),
@@ -1890,7 +1926,8 @@
           '70 significa che quella partita è stata migliore del 70% delle partite del riferimento nello stesso ruolo. È il modo più rapido per capire se hai giocato bene indipendentemente dal risultato.'),
         p(strong('Costanza'), ': la deviazione standard dei punteggi partita. Come termine di paragone, le partite di tutto il riferimento messe insieme hanno circa ±29: più sei sotto, più sei regolare; intorno a ±30 alterni partite molto alte e molto basse.')),
       section('Il tuo livello',
-        p('La ', strong('lega più vicina'), ' è quella in cui saresti il giocatore tipico. Per ogni lega si calcola il punteggio che avresti se le tue partite della stagione fossero confrontate con i giocatori di quella lega, nello stesso ruolo: salendo di lega il punteggio scende, e la lega più vicina è quella in cui arriva a 50.'),
+        p('La ', strong('lega più vicina'), ' è quella in cui saresti il giocatore tipico. Si usano solo le partite della stagione nel tuo ', strong('ruolo principale'), ' (quello che giochi di più): mescolare i ruoli abbasserebbe la stima di chi gioca bene il suo ruolo e peggio quelli secondari. ',
+          'Per ogni lega si calcola il punteggio che avresti se quelle partite fossero confrontate con i giocatori di quella lega nello stesso ruolo: salendo di lega il punteggio scende, e la lega più vicina è quella in cui arriva a 50.'),
         p('Si usano solo i parametri che ', strong('cambiano davvero da una lega all\'altra'), ' nel tuo ruolo, scelti in base ai dati delle leghe (soprattutto CS/min e CS a 10 minuti; per i Support visione e partecipazione alle uccisioni). ',
           'KDA, morti, danni e danni agli obiettivi restano quasi uguali da Iron a Master+, perché ogni uccisione è la morte di qualcun altro: confrontarli con un\'altra lega non dice nulla sul livello.'),
         p(strong('Intervallo probabile'), ': ricampionando le tue partite 300 volte, la stima cade in questo intervallo 8 volte su 10. ',

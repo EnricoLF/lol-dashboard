@@ -5,16 +5,18 @@ Idea: per ogni lega si calcola il punteggio (0-100) che avresti se le tue partit
 con i giocatori di quella lega, nello stesso ruolo. 50 vuol dire "giocatore tipico di quella lega".
 Il punteggio scende salendo di lega; la lega piu' vicina e' quella in cui scende a 50.
 
-Per la stima si usano solo i parametri che cambiano davvero da una lega all'altra nel tuo ruolo
-(es. CS/min). KDA, morti e danni restano quasi uguali da Iron a Master, perche' ogni uccisione e' la
-morte di qualcun altro: confrontarli con un'altra lega non dice nulla sul livello.
+Si usano solo le partite nel ruolo principale (quello giocato di piu') e solo i parametri che cambiano
+davvero da una lega all'altra in quel ruolo (es. CS/min). KDA, morti e danni restano quasi uguali da
+Iron a Master, perche' ogni uccisione e' la morte di qualcun altro: confrontarli con un'altra lega non
+dice nulla sul livello.
 """
 
 from __future__ import annotations
 
 import random
+from collections import Counter
 
-from lol_metrics import INVERTED, axis_score, percentile_of, raw_game_score, scored_axes
+from lol_metrics import ROLES, INVERTED, axis_score, percentile_of, raw_game_score, scored_axes
 
 TIER_ORDER = ("IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER")
 TIER_NAMES = {"IRON": "Iron", "BRONZE": "Bronze", "SILVER": "Silver", "GOLD": "Gold", "PLATINUM": "Platinum",
@@ -111,16 +113,24 @@ def rank_position(rank: dict | None) -> float | None:
     return (ladder - 200) / 400
 
 
-def estimate_level(rows: list[dict], tiers: dict, rank: dict | None, lobby: dict | None) -> dict | None:
-    """Livello stimato dalle righe di participant_metrics delle tue partite (gia' filtrate: es. stagione).
+def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: dict | None) -> dict | None:
+    """Livello stimato nel ruolo principale, dalle righe di participant_metrics delle tue partite
+    (gia' filtrate: es. stagione).
 
-    rows: righe con "role" e i valori dei parametri. tiers: benchmarks.json["tiers"]. lobby: distribuzioni
-    della tua lobby (i 9 giocatori delle tue partite), per il punteggio rispetto al tuo MMR.
+    Si usa solo il ruolo che giochi di piu': mescolare i ruoli abbasserebbe la stima di chi gioca bene il
+    suo ruolo e peggio quelli secondari. all_rows: righe con "role" e i valori dei parametri.
+    tiers: benchmarks.json["tiers"]. lobby: distribuzioni della tua lobby (i 9 giocatori delle tue
+    partite), per il punteggio rispetto al tuo MMR.
     """
     available = [t for t in TIER_ORDER if t in tiers]
-    if len(available) < len(TIER_ORDER) or len(rows) < MIN_GAMES:
+    if len(available) < len(TIER_ORDER) or not all_rows:
         return None
-    axes_by_role = {role: level_axes(tiers, role) for role in {r["role"] for r in rows}}
+    main_role = Counter(r["role"] for r in all_rows).most_common(1)[0][0]
+    rows = [r for r in all_rows if r["role"] == main_role]
+    if len(rows) < MIN_GAMES:
+        return None
+    # Parametri che distinguono le leghe, per ogni ruolo (dipendono solo dalle medie di lega)
+    axes_by_role = {role: level_axes(tiers, role) for role in ROLES}
 
     # Per ogni partita e ogni lega: media dei punteggi nei parametri che distinguono le leghe
     matrix = []
@@ -156,33 +166,14 @@ def estimate_level(rows: list[dict], tiers: dict, rank: dict | None, lobby: dict
     else:
         verdict = "inline"
 
-    # Livello di ogni parametro (solo se distingue le leghe nei ruoli che giochi di piu')
+    # Livello di ogni parametro che distingue le leghe nel ruolo principale
     axis_levels = {}
-    for key in {k for keys in axes_by_role.values() for k in keys}:
-        lines = []
-        for row in rows:
-            if key not in axes_by_role[row["role"]]:
-                continue
-            line = [axis_score(key, row.get(key), tiers[t]["roles"].get(row["role"], {})) for t in TIER_ORDER]
-            if None not in line:
-                lines.append(line)
-        if len(lines) >= max(MIN_GAMES // 2, len(rows) // 3):
+    for key in axes_by_role[main_role]:
+        lines = [line for row in rows
+                 if None not in (line := [axis_score(key, row.get(key), tiers[t]["roles"].get(main_role, {})) for t in TIER_ORDER])]
+        if len(lines) >= MIN_GAMES // 2:
             pos, axis_bound = crossing(curve_of(lines))
             axis_levels[key] = {"position": round(pos, 2), "bound": axis_bound, "games": len(lines), **position_label(pos)}
-
-    # Lo stesso, ruolo per ruolo: nella scheda di un parametro il livello deve riferirsi al ruolo mostrato
-    by_role = {}
-    for role, keys in axes_by_role.items():
-        role_rows = [r for r in rows if r["role"] == role]
-        levels = {}
-        for key in keys:
-            lines = [line for r in role_rows
-                     if None not in (line := [axis_score(key, r.get(key), tiers[t]["roles"].get(role, {})) for t in TIER_ORDER])]
-            if len(lines) >= MIN_GAMES // 2:
-                pos, axis_bound = crossing(curve_of(lines))
-                levels[key] = {"position": round(pos, 2), "bound": axis_bound, "games": len(lines), **position_label(pos)}
-        if levels:
-            by_role[role] = levels
 
     own_tier = None
     if rank and rank.get("tier") in TIER_ORDER:
@@ -191,7 +182,9 @@ def estimate_level(rows: list[dict], tiers: dict, rank: dict | None, lobby: dict
         own_tier = "MASTER"
 
     return {
+        "role": main_role,
         "games": len(matrix),
+        "totalGames": len(all_rows),
         "position": round(position, 2),
         "low": round(low, 2),
         "high": round(high, 2),
@@ -205,7 +198,6 @@ def estimate_level(rows: list[dict], tiers: dict, rank: dict | None, lobby: dict
         "curve": {t: round(v, 1) for t, v in zip(TIER_ORDER, curve)},
         "axesByRole": {role: list(keys) for role, keys in axes_by_role.items()},
         "axisLevels": axis_levels,
-        "axisLevelsByRole": by_role,
         "ownTier": own_tier,
         "scoreOwnTier": overall_score(rows, tiers[own_tier]["roles"]) if own_tier else None,
         "scoreLobby": overall_score(rows, lobby) if lobby else None,

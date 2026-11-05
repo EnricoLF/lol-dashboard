@@ -90,7 +90,8 @@
   <p class="sub" id="updated"></p>
   <div class="cards" id="cards"></div>
   <p class="missing" id="missing" hidden></p>
-  <p class="meta" style="margin-top:28px">Dati: Riot Games API. Questa pagina non è approvata da Riot Games. Riot Games e League of Legends sono marchi di Riot Games, Inc.</p>
+  <p class="meta" style="margin-top:28px"><strong>Livello</strong>: la lega in cui il giocatore sarebbe nella media, stimata sulle partite della stagione nel suo ruolo principale e sui parametri che cambiano davvero da una lega all'altra (CS/min e CS a 10 minuti; per i Support visione e partecipazione alle uccisioni). "Sopra" o "sotto il rank" solo se tutto l'intervallo di incertezza sta sopra o sotto il rank attuale. Il calcolo passo per passo è nella dashboard di ogni account, nel riquadro "Il tuo livello".</p>
+  <p class="meta" style="margin-top:10px">Dati: Riot Games API. Questa pagina non è approvata da Riot Games. Riot Games e League of Legends sono marchi di Riot Games, Inc.</p>
 </div>
 
 <script>const DATA = /*__DASHBOARD_DATA__*/null;</script>
@@ -137,13 +138,14 @@
     + '"Apri in una finestra" apre ogni account nella sua finestra, così puoi tenerli affiancati.';
 
   // Lega piu' vicina alle prestazioni (stimata dallo script) e confronto con il rank attuale
+  const ROLE_NAMES = { TOP: 'Top', JUNGLE: 'Jungle', MIDDLE: 'Mid', BOTTOM: 'ADC', UTILITY: 'Support' };
   function levelLine(lv) {
     if (!lv) return null;
     const verdicts = { above: ['good', 'Sopra il rank'], inline: ['', 'In linea con il rank'], below: ['bad', 'Sotto il rank'] };
     const [cls, text] = verdicts[lv.verdict] || ['', ''];
     const range = lv.lowLabel === lv.highLabel ? '' : ` (${lv.lowLabel} – ${lv.highLabel})`;
     return el('div', { class: 'level', title: `Lega più vicina alle prestazioni${range}, ${lv.scope === 'season' ? 'stagione in corso' : 'ultime 100 partite'}` },
-      el('div', {}, el('span', { class: 'label', text: 'Livello delle prestazioni' }), el('strong', { text: lv.label })),
+      el('div', {}, el('span', { class: 'label', text: lv.role ? `Livello da ${ROLE_NAMES[lv.role] || lv.role}` : 'Livello delle prestazioni' }), el('strong', { text: lv.label })),
       el('span', { class: `verdict ${cls}`, text }));
   }
 

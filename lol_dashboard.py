@@ -54,7 +54,6 @@ from lol_duo_analyzer import (
     load_dotenv,
     parse_riot_id,
 )
-from lol_level import MIN_GAMES as LEVEL_MIN_GAMES
 from lol_level import estimate_level
 from lol_metrics import PING_TYPES, build_distribution, cs_at_10, participant_metrics, ping_counts
 
@@ -544,18 +543,22 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
     if season:
         print(f"Stagione in corso: {len(season_games)} partite dal {datetime.fromtimestamp(start / 1000):%d/%m/%Y}")
 
-    # Livello stimato: stagione in corso, oppure le ultime 100 partite se nella stagione sono poche
-    scope = "season" if len(season_games) >= LEVEL_MIN_GAMES else "recent"
-    level_ids = {g["id"] for g in (season_games if scope == "season" else games[:100])}
-    level_rows = [row for m in matches if m["metadata"].get("matchId") in level_ids
-                  for p in m["info"]["participants"] if p.get("puuid") == puuid
-                  if (row := participant_metrics(m, p))]
-    level = estimate_level(level_rows, tiers, history[-1] if history else None, lobby["roles"])
+    # Livello stimato nel ruolo principale: stagione in corso, oppure le ultime 100 partite se nella
+    # stagione le partite in quel ruolo sono poche
+    level = None
+    for scope, pool in (("season", season_games), ("recent", games[:100])):
+        level_ids = {g["id"] for g in pool}
+        level_rows = [row for m in matches if m["metadata"].get("matchId") in level_ids
+                      for p in m["info"]["participants"] if p.get("puuid") == puuid
+                      if (row := participant_metrics(m, p))]
+        level = estimate_level(level_rows, tiers, history[-1] if history else None, lobby["roles"])
+        if level:
+            level["scope"] = scope
+            break
     if level:
-        level["scope"] = scope
         verdicts = {"above": "sopra il rank", "below": "sotto il rank", "inline": "in linea con il rank"}
-        print(f"Livello stimato: {level['label']} ({level['lowLabel']} - {level['highLabel']}), "
-              f"{verdicts.get(level['verdict'], 'rank non disponibile')}")
+        print(f"Livello stimato da {level['role']} ({level['games']} partite): {level['label']} "
+              f"({level['lowLabel']} - {level['highLabel']}), {verdicts.get(level['verdict'], 'rank non disponibile')}")
     generated_at = datetime.now().isoformat(timespec="seconds")
     payload = {
         "slug": account["slug"],
@@ -586,7 +589,7 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
         "status": status,
         "rank": history[-1] if history else None,
         "season": bool(season_games),
-        "level": level and {k: level[k] for k in ("label", "lowLabel", "highLabel", "verdict", "gap", "tier", "scope")},
+        "level": level and {k: level[k] for k in ("label", "lowLabel", "highLabel", "verdict", "gap", "tier", "scope", "role", "games")},
         "games": len(shown),
         "winRate": sum(g["win"] for g in shown) / len(shown),
         "recentWinRate": sum(g["win"] for g in recent) / len(recent),
