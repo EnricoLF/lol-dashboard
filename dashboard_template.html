@@ -622,6 +622,8 @@
   const $ = (id) => document.getElementById(id);
   const sum = (arr) => arr.reduce((a, b) => a + b, 0);
   const avg = (arr) => (arr.length ? sum(arr) / arr.length : null);
+  // media sulle sole partite in cui il valore esiste (es. KP senza uccisioni di squadra non e' definita)
+  const avgOf = (gs, fn) => avg(gs.map(fn).filter((v) => v != null));
   const winRate = (gs) => (gs.length ? gs.filter((g) => g.win).length / gs.length : null);
   const scored = (gs) => gs.map((g) => g.score).filter((v) => v != null);
   const stdev = (arr) => { const m = avg(arr); return arr.length > 1 ? Math.sqrt(avg(arr.map((v) => (v - m) ** 2))) : null; };
@@ -813,7 +815,7 @@
       el('button', { type: 'button', class: 'acc-new', text: '↗', title: `Apri ${a.player} in una nuova finestra`, 'aria-label': `Apri ${a.player} in una nuova finestra`,
         onclick: () => openAccountWindow(a.slug) }))),
       el('a', { href: 'index.html', text: 'Riepilogo account' }));
-    $('footer').textContent = `Dati: Riot Games API (Match-V5, League-V4) · regione ${DATA.region} · soglia partner duo ${pct(DATA.threshold, 0)}. `
+    $('footer').textContent = `Dati: Riot Games API (Match-V5, League-V4) · regione ${DATA.region} · partner duo: almeno ${DATA.duoGames} partite insieme. `
       + 'Questa dashboard non è approvata da Riot Games e non riflette le opinioni di Riot Games o di chiunque sia ufficialmente coinvolto nella produzione o nella gestione delle proprietà di Riot Games. '
       + 'Riot Games e tutte le proprietà associate sono marchi o marchi registrati di Riot Games, Inc.';
   }
@@ -890,7 +892,7 @@
       { label: 'Punteggio partita', value: fmt(avg(scored(gs)), 0), meta: `Costanza: ± ${fmt(stdev(scored(gs)), 0)} punti` },
       { label: 'KDA', value: fmt(kda(gs), 2), meta: `${fmt(avg(gs.map((g) => g.k)))} / ${fmt(avg(gs.map((g) => g.d)))} / ${fmt(avg(gs.map((g) => g.a)))}` },
       { label: 'CS/min', value: fmt(avg(gs.map((g) => g.cs / g.dur)), 2), meta: `CS a 10 min: ${fmt(avg(cs10), 0)}` },
-      { label: 'Kill participation', value: pct(avg(gs.map((g) => g.kp)), 0), meta: `Quota danni: ${pct(avg(gs.map((g) => g.dmgShare)), 0)}` },
+      { label: 'Kill participation', value: pct(avgOf(gs, (g) => g.kp), 0), meta: `Quota danni: ${pct(avg(gs.map((g) => g.dmgShare)), 0)}` },
       { label: 'Danni/min', value: fmt(avg(gs.map((g) => g.dmg / g.dur)), 0), meta: `Gold/min: ${fmt(avg(gs.map((g) => g.gold / g.dur)), 0)}` },
       { label: 'Vision/min', value: fmt(avg(gs.map((g) => g.vis / g.dur)), 2), meta: `${fmt(avg(gs.map((g) => g.ctrl)), 1)} control ward a partita` },
       { label: 'Serie attuale', value: currentStreak(gs), meta: `Ultime 10: ${last10.filter((g) => g.win).length}V ${last10.filter((g) => !g.win).length}S` },
@@ -912,7 +914,7 @@
     { label: 'CS/min', fn: (gs) => avg(gs.map((g) => g.cs / g.dur)), f: (v) => fmt(v, 2), good: 1 },
     { label: 'Gold/min', fn: (gs) => avg(gs.map((g) => g.gold / g.dur)), f: (v) => fmt(v, 0), good: 1 },
     { label: 'Danni a campioni/min', fn: (gs) => avg(gs.map((g) => g.dmg / g.dur)), f: (v) => fmt(v, 0), good: 1 },
-    { label: 'Kill participation', fn: (gs) => avg(gs.map((g) => g.kp)), f: (v) => pct(v), df: (v) => fmt(v * 100, 1) + ' pt', good: 1 },
+    { label: 'Kill participation', fn: (gs) => avgOf(gs, (g) => g.kp), f: (v) => pct(v), df: (v) => fmt(v * 100, 1) + ' pt', good: 1 },
     { label: 'Quota danni del team', fn: (gs) => avg(gs.map((g) => g.dmgShare)), f: (v) => pct(v), df: (v) => fmt(v * 100, 1) + ' pt', good: 1 },
     { label: 'Danni subiti', fn: (gs) => avg(gs.map((g) => g.taken)), f: (v) => fmt(v, 0), good: 0 },
     { label: 'Danni mitigati', fn: (gs) => avg(gs.map((g) => g.mitig)), f: (v) => fmt(v, 0), good: 0 },
@@ -928,7 +930,7 @@
       partnersHost.append(el('span', { class: 'sub', text: 'Partner rilevati: ' }),
         ...DATA.partners.map((p) => el('span', { class: 'chip', text: `${p.name} · ${p.games} partite` })));
     } else {
-      partnersHost.append(el('p', { class: 'sub', text: `Nessun partner duo rilevato (soglia ${pct(DATA.threshold, 0)} delle partite): tutte le partite contano come Solo Queue.` }));
+      partnersHost.append(el('p', { class: 'sub', text: `Nessun partner duo rilevato (nessun compagno con almeno ${DATA.duoGames} partite insieme): tutte le partite contano come Solo Queue.` }));
     }
     const groups = [['Solo Queue', gs.filter((g) => g.queue === 'Solo')], ['Duo Queue', gs.filter((g) => g.queue === 'Duo')]];
     const extra = DATA.partners.length > 1 ? DATA.partners.map((p) => ['Con ' + p.name, gs.filter((g) => g.partners.includes(p.name))]) : [];
@@ -1110,7 +1112,7 @@
   // Stesse formule di lol_metrics.py: il confronto con i riferimenti e' corretto solo se coincidono.
   // skip: ruoli in cui il parametro non si valuta. tips: consigli validi per tutti; roleTips: in piu' per ruolo.
   const AXES = [
-    { key: 'kda', biased: true, axis: 'Combattimento', label: 'KDA per partita', fn: (g) => (g.k + g.a) / Math.max(1, g.d), f: (v) => fmt(v, 2),
+    { key: 'kda', axis: 'Combattimento', label: 'KDA per partita', fn: (g) => (g.k + g.a) / Math.max(1, g.d), f: (v) => fmt(v, 2),
       formula: '(Uccisioni + Assist) ÷ max(1, Morti), calcolato per ogni partita', fields: 'kills, deaths, assists',
       what: 'Quante uccisioni e assist ottieni per ogni morte. Con 0 morti si divide per 1, così una partita perfetta non vale "infinito".',
       meaning: 'Dice se negli scontri dai più di quanto concedi. È diverso dal KDA del riquadro in alto, che somma tutte le partite prima di dividere: qui ogni partita pesa allo stesso modo, quindi una sola partita da 15/0/10 non falsa il valore.',
@@ -1120,18 +1122,18 @@
       roleTips: { JUNGLE: 'Ganka le corsie in cui il tuo alleato tiene l\'ondata vicino alla sua torre e il nemico non ha il Flash.',
         UTILITY: 'Resta a portata del tuo ADC: da lì ogni sua uccisione diventa un tuo assist e le tue protezioni lo tengono vivo.' } },
     { key: 'impm', axis: 'Impatto', label: 'Impatto in combattimento', fn: (g) => impactRaw(g, benchRoles()[g.role]), f: (v) => fmt(v, 0),
-      formula: 'Il migliore tra tre percentili nel tuo ruolo: danni ai campioni al minuto, cure e scudi ai compagni al minuto, danni assorbiti al minuto. L\'indice va da 0 a 100',
-      fields: 'totalDamageDealtToChampions, totalHealsOnTeammates, totalDamageShieldedOnTeammates, damageSelfMitigated',
-      what: 'Quanto pesi negli scontri, nel modo in cui il tuo campione contribuisce: un carry con i danni, un incantatore con cure e scudi, un tank con i danni che assorbe al posto della squadra.',
-      meaning: 'Ognuno dei tre contributi diventa un percentile nel tuo ruolo e conta il migliore. Così un Leona che assorbe tantissimo e un Jinx che fa tantissimi danni hanno la stessa possibilità di un punteggio alto. Sommarli invece premierebbe sempre i tank, che assorbono decine di migliaia di danni.',
+      formula: 'Il migliore tra i percentili nel tuo ruolo di danni ai campioni al minuto e danni assorbiti al minuto; per i Support anche cure e scudi ai compagni al minuto. Un contributo pari a zero vale 0. L\'indice va da 0 a 100',
+      fields: 'totalDamageDealtToChampions, damageSelfMitigated, totalHealsOnTeammates, totalDamageShieldedOnTeammates',
+      what: 'Quanto pesi negli scontri, nel modo in cui il tuo campione contribuisce: un carry con i danni, un tank con i danni che assorbe al posto della squadra e, da Support, un incantatore con cure e scudi.',
+      meaning: 'Ognuno dei contributi diventa un percentile nel tuo ruolo e conta il migliore. Così un Leona che assorbe tantissimo e un Jinx che fa tantissimi danni hanno la stessa possibilità di un punteggio alto. Sommarli invece premierebbe sempre i tank, che assorbono decine di migliaia di danni. Cure e scudi ai compagni contano solo per i Support: negli altri ruoli valgono zero in circa 9 partite su 10, quindi non distinguono un giocatore da un altro. Il campione conta molto: a parità di bravura alcuni campioni hanno valori molto più alti di altri.',
       tips: ['Nei teamfight resta nella posizione da cui il tuo campione rende di più: i carry dietro, i tank davanti a prendere i colpi al posto della squadra.',
         'Completa il primo oggetto importante il prima possibile: è il salto di rendimento più grande della partita, per danni, cure o resistenze.',
         'Entra negli scontri insieme alla squadra: un contributo dato da solo, con i compagni lontani, si traduce raramente in un vantaggio.'],
       roleTips: { BOTTOM: 'Da ADC alterna attacchi base e movimento (kiting): gli attacchi base sono la maggior parte dei tuoi danni.',
         UTILITY: 'Da Support tank apri lo scontro quando i tuoi compagni possono seguirti; da incantatore tieni gli scudi per il compagno che viene attaccato.',
         TOP: 'Da Top tank cerca gli scontri vicino agli obiettivi, dove puoi assorbire i danni mentre la squadra colpisce.' } },
-    { key: 'kp', biased: true, axis: 'Teamplay', label: 'Kill participation', fn: (g) => g.kp, f: (v) => pct(v, 0),
-      formula: '(Uccisioni + Assist) ÷ uccisioni totali della tua squadra', fields: 'kills, assists (tuoi e dei compagni)',
+    { key: 'kp', axis: 'Teamplay', label: 'Kill participation', fn: (g) => g.kp, f: (v) => pct(v, 0),
+      formula: '(Uccisioni + Assist) ÷ uccisioni totali della tua squadra. Se la squadra non fa uccisioni la partita non conta per questo parametro', fields: 'kills, assists (tuoi e dei compagni)',
       what: 'La quota delle uccisioni della tua squadra a cui hai partecipato, con un\'uccisione o un assist.',
       meaning: 'Dice quanto sei presente dove la squadra combatte. Un valore basso di solito significa farmare da soli mentre il resto del team gioca 4 contro 5.',
       tips: ['Controlla il timer di draghi e Voidgrubs (Tab): spingi la tua ondata e raggiungi la squadra 30-40 secondi prima che compaiano.',
@@ -1176,7 +1178,7 @@
         'Un minuto prima di drago o Barone metti visione intorno all\'obiettivo e distruggi quella nemica.'],
       roleTips: { UTILITY: 'Dopo la missione del support passa all\'Oracolo (trinket rosso) e ripulisci la visione nemica intorno agli obiettivi.',
         JUNGLE: 'Mentre passi nella giungla nemica piazza una ward: ti dice dove si trova l\'altro jungler.' } },
-    { key: 'objp', biased: true, axis: 'Obiettivi', label: 'Partecipazione agli obiettivi', fn: (g) => g.objPart, f: (v) => pct(v, 0),
+    { key: 'objp', axis: 'Obiettivi', label: 'Partecipazione agli obiettivi', fn: (g) => g.objPart, f: (v) => pct(v, 0),
       formula: '(Torri + draghi + Baroni a cui hai partecipato, con un colpo finale o un assist) ÷ torri + draghi + Baroni presi dalla tua squadra',
       fields: 'turretTakedowns, challenges.dragonTakedowns, challenges.baronTakedowns, teams.objectives',
       what: 'La quota degli obiettivi presi dalla tua squadra a cui hai partecipato: torri, draghi e Barone. I Voidgrubs restano fuori perché il conteggio di Riot per giocatore non torna con il totale della squadra.',
@@ -1188,14 +1190,23 @@
         TOP: 'Da Top, quando l\'avversario è in base, spingi l\'ondata e colpisci la torre: in corsia singola è il tuo modo principale di aiutare.',
         UTILITY: 'Da Support muoviti con il jungler verso il drago appena la tua corsia è ferma: anche un assist conta.' } },
   ];
-  // Indice di impatto: il migliore tra danni, cure e scudi, danni assorbiti, come percentile nel ruolo
-  // (stessa regola di impact_raw in lol_metrics.py)
+  // Indice di impatto: il migliore dei contributi del ruolo, come percentile nel ruolo (stessa regola di
+  // impact_raw in lol_metrics.py). Cure e scudi ai compagni solo per i Support; un contributo nullo vale 0.
+  const IMPACT_PARTS = { UTILITY: [['dpm', 'dmg'], ['hspm', 'allyHeal'], ['mitpm', 'mitig']] };
+  const DEFAULT_IMPACT_PARTS = [['dpm', 'dmg'], ['mitpm', 'mitig']];
   function impactRaw(g, stats) {
     if (!stats) return null;
-    const parts = [['dpm', g.dmg], ['hspm', g.allyHeal], ['mitpm', g.mitig]]
-      .filter(([k, v]) => v != null && stats[k] && stats[k].q).map(([k, v]) => percentileOf(v / g.dur, stats[k].q));
+    const parts = (IMPACT_PARTS[g.role] || DEFAULT_IMPACT_PARTS).filter(([k, f]) => g[f] != null && stats[k] && stats[k].q)
+      .map(([k, f]) => (g[f] <= 0 ? 0 : percentileOf(g[f] / g.dur, stats[k].q)));
     return parts.length ? Math.max(...parts) : null;
   }
+  // Quanti punti (0-100) ogni parametro sale nelle vittorie rispetto alle sconfitte, misurato da build_benchmarks.py
+  // sulle partite di tutte le leghe. Da BIAS_GAP punti in su il parametro e' in buona parte una conseguenza del risultato.
+  const BIAS_GAP = 10;
+  const outcomeGap = (key) => (ALL.calibration && ALL.calibration.outcomeGap ? ALL.calibration.outcomeGap[key] ?? null : null);
+  const isBiased = (k) => (outcomeGap(k.gapKey || k.key) ?? 0) >= BIAS_GAP;
+  // Quota di partite in cui un giocatore di quel ruolo e' il migliore della squadra (non sempre il 20%)
+  const teamBestRate = (role) => (ALL.calibration && ALL.calibration.teamBest ? ALL.calibration.teamBest[role] ?? null : null);
   const scoredFor = (a, role) => !(a.skip || []).includes(role);
   // Consigli da mostrare: prima quello del ruolo che giochi di piu', poi quelli generali
   const tipsFor = (a, role) => [...(a.roleTips && a.roleTips[role] ? [a.roleTips[role]] : []), ...a.tips];
@@ -1237,13 +1248,22 @@
   // Punteggi 0-100, tutti con lo stesso significato: quante prestazioni del riferimento scelto, nello stesso
   // ruolo, hai superato (50 = tipico). Stesse regole di lol_metrics.py (axis_score, raw_game_score).
   //  - parametro in una partita: percentile del tuo valore;
-  //  - punteggio partita: percentile della media degli 8 parametri, calibrato sulle partite del riferimento;
+  //  - punteggio partita: percentile della media degli 8 parametri, calibrato sulle partite del riferimento con lo
+  //    stesso risultato (una vittoria con le vittorie, una sconfitta con le sconfitte);
   //  - punteggio di un parametro (radar): media dei punteggi partita per partita.
   const MAX_MISSING_AXES = 2;   // un punteggio partita se mancano al massimo 2 parametri (stessa regola di lol_metrics.py)
+  const MIN_SCORED_MINUTES = 10;   // sotto i 10 minuti nessun punteggio (MIN_SCORED_MINUTES in lol_metrics.py)
+  // Stessa regola di calibrate() in lol_metrics.py: senza vittorie e sconfitte sufficienti nel riferimento, tutte le partite
+  function calibrate(raw, win, stats) {
+    if (stats.scoreWin && stats.scoreLoss) return percentileOf(raw, (win ? stats.scoreWin : stats.scoreLoss).q);
+    return stats.score ? percentileOf(raw, stats.score.q) : raw;
+  }
   function scoreGames() {
     const roles = benchRoles();
     for (const g of games) {
       g.scores = {};
+      g.score = null;
+      if (g.dur < MIN_SCORED_MINUTES) continue;   // es. resa per un giocatore assente: valori non confrontabili
       const values = [];
       const stats = roles[g.role] || {};
       for (const a of AXES) {
@@ -1255,8 +1275,7 @@
       }
       const minAxes = AXES.filter((a) => scoredFor(a, g.role)).length - MAX_MISSING_AXES;   // 6 su 8, Support 4 su 6
       const raw = values.length >= minAxes ? avg(values) : null;
-      // con medie di lega vecchie (senza "score") resta la media semplice
-      g.score = raw == null ? null : stats.score ? percentileOf(raw, stats.score.q) : raw;
+      g.score = raw == null ? null : calibrate(raw, g.win, stats);
     }
   }
   // you: il tuo valore tipico (mediana); ref: il valore tipico del riferimento (mediana) nei ruoli che giochi
@@ -1281,11 +1300,12 @@
     if (better.length < MIN_GAMES || worse.length < MIN_GAMES) return null;
     return { med, better, worse, gap: winRate(better) - winRate(worse) };
   }
+  // Il punteggio partita non c'e': confronta ogni partita con quelle dello stesso risultato, quindi per costruzione
+  // non dice nulla su vittoria o sconfitta
   const IMPACT_KPIS = [
-    { label: 'Punteggio partita', fn: (g) => g.score, f: (v) => fmt(v, 0) },
     ...AXES,
     { label: 'CS a 10 min vs avversario', fn: (g) => g.cs10Diff, f: (v) => signed(v, 0) },
-    { label: 'Gold/min', fn: (g) => g.gold / g.dur, f: (v) => fmt(v, 0), biased: true },
+    { label: 'Gold/min', fn: (g) => g.gold / g.dur, f: (v) => fmt(v, 0), gapKey: 'gpm' },
     { label: 'Quota danni del team', fn: (g) => g.dmgShare, f: (v) => pct(v, 0) },
   ];
 
@@ -1432,7 +1452,7 @@
           document.createTextNode(`: confrontando una tua partita con quella di ${benchPlayer()} nello stesso ruolo, fai meglio tu ${Math.round(focus.s.score)} volte su 100.`)));
       if (focus.imp) {
         body.append(el('p', { text: `Nelle tue partite, quando fai meglio della tua mediana (${focus.a.f(focus.imp.med)}) vinci il ${pct(winRate(focus.imp.better), 0)}, altrimenti il ${pct(winRate(focus.imp.worse), 0)}.`
-          + (focus.a.biased ? ' Parte di questa differenza dipende dal fatto che chi vince sale naturalmente in questo parametro.' : '') }));
+          + (isBiased(focus.a) ? ' Parte di questa differenza è un effetto del risultato: chi vince ha quasi sempre valori migliori in questo parametro.' : '') }));
       }
       body.append(el('p', {}, el('strong', { text: 'Come migliorare: ' }), document.createTextNode(tipsFor(focus.a, mainRole(gs))[0])),
         el('p', {}, el('button', { type: 'button', class: 'link-btn', text: `Scheda completa di ${focus.a.axis} →`, onclick: () => openSheet(focus.a) })),
@@ -1483,19 +1503,30 @@
     const lv = DATA.level, host = $('level');
     if (!lv) {
       $('level-sub').textContent = '';
-      host.replaceChildren(el('p', { class: 'empty', text: 'Servono almeno 20 partite e le medie di tutte le leghe per stimare il livello.' }));
+      host.replaceChildren(el('p', { class: 'empty', text: (ALL.staleTiers || []).length
+        ? `Le medie di ${ALL.staleTiers.map(tierName).join(', ')} sono state calcolate con formule precedenti e non vengono usate: rigenerale con python build_benchmarks.py --recompute.`
+        : 'Servono almeno 20 partite e le medie di tutte le leghe per stimare il livello.' }));
       return;
     }
     const others = lv.totalGames - lv.games;
     $('level-sub').textContent = `${lv.scope === 'season' ? 'Stagione in corso' : 'Ultime 100 partite'} · ${lv.games} partite da ${roleLabel(lv.role)}, il tuo ruolo principale`
       + `${others ? ` (le altre ${others} partite, in altri ruoli, non contano)` : ''}. Non dipende dai filtri.`;
     const rank = DATA.rank && TIERS.includes(DATA.rank.tier) ? DATA.rank : null;
+    // Il giudizio descrive le statistiche, non prevede il rank: il rank segue le vittorie, mostrate subito sotto
     const VERDICT = {
-      above: ['good', 'Sopra il tuo rank', 'Se mantieni questo livello è probabile che tu salga.'],
-      inline: ['', 'In linea con il rank', 'Per salire devi migliorare nei parametri qui sotto.'],
-      below: ['bad', 'Sotto il tuo rank', 'Può succedere se giochi spesso in duo con giocatori più forti, se stai provando campioni nuovi, o se il tuo punto di forza non si vede nei numeri (decisioni, gestione della mappa).'],
+      above: ['good', 'Statistiche sopra il rank', 'È una descrizione di come giochi, non una previsione: il rank sale solo con le vittorie.'],
+      inline: ['', 'Statistiche in linea con il rank', 'Per salire servono statistiche migliori nei parametri qui sotto, o più vittorie con le stesse statistiche.'],
+      below: ['bad', 'Statistiche sotto il rank', 'Può succedere se giochi spesso in duo con giocatori più forti, se stai provando campioni nuovi, se giochi campioni che farmano poco (per esempio i tank) o se il tuo punto di forza non si vede nei numeri (decisioni, gestione della mappa).'],
     };
     const [cls, tag, conclusion] = VERDICT[lv.verdict] || ['', 'Rank non disponibile', ''];
+    // Risultati reali nel ruolo principale, con l'intervallo all'80%; si dice quando smentiscono il giudizio
+    const wrRange = lv.winRate == null ? '' : `${pct(lv.winRate, 0)} (intervallo 80%: ${pct(lv.wrLow, 0)}–${pct(lv.wrHigh, 0)})`;
+    const resultText = lv.winRate == null ? '' : `Risultati da ${roleLabel(lv.role)}: ${lv.wins} vittorie e ${lv.losses} sconfitte, ${wrRange}. `
+      + (lv.verdict === 'above' && lv.resultSignal < 0 ? 'I risultati però sono sotto il 50% anche nel caso migliore: per ora queste statistiche non si traducono in vittorie.'
+        : lv.verdict === 'below' && lv.resultSignal > 0 ? 'I risultati però sono sopra il 50% anche nel caso peggiore: vinci più di quanto dicano le statistiche.'
+        : lv.resultSignal > 0 ? 'Vinci più della metà delle partite anche nel caso peggiore dell\'intervallo.'
+        : lv.resultSignal < 0 ? 'Perdi più della metà delle partite anche nel caso migliore dell\'intervallo.'
+        : 'Il 50% sta dentro l\'intervallo: i risultati non dicono ancora se vinci più o meno della metà delle partite.');
     const farmText = lv.farmSignal == null ? 'Senza un rank in Solo/Duo non si può dire se sei sopra o sotto.'
       : lv.farmSignal > 0 ? `Nel farm giochi circa ${divisionsText(lv.gap)} sopra il tuo rank`
       : lv.farmSignal < 0 ? `Nel farm giochi circa ${divisionsText(lv.gap)} sotto il tuo rank`
@@ -1552,6 +1583,7 @@
         el('div', { class: 'lvl-head' }, el('div', {}, el('span', { class: 'lvl-kicker', text: `Lega più vicina alle tue prestazioni da ${roleLabel(lv.role)}` }),
           el('div', { class: 'lvl-big', text: lv.label })), el('span', { class: `verdict-tag ${cls}`, text: tag })),
         el('p', { class: 'lvl-text', text }),
+        resultText ? el('p', { class: 'lvl-text', text: resultText }) : null,
         scale,
         el('p', { class: 'sub', style: 'margin:10px 0 0', text: lv.lowLabel === lv.highLabel ? `Stima solida: ${lv.label}.` : `Intervallo probabile (80%): da ${lv.lowLabel} a ${lv.highLabel}.` }),
         chips.length ? el('div', { class: 'lvl-chips' }, el('span', { class: 'lvl-kicker', text: 'Livello per parametro' }), ...chips) : null),
@@ -1561,7 +1593,9 @@
           stat(ownTier ? `Contro ${iGli(lv.ownTier)} ${ownTier} (la tua lega)` : 'Contro la tua lega', scoreSpan(lv.scoreOwnTier), 'Punteggio medio delle tue partite, tutti gli 8 parametri'),
           stat('Contro la tua lobby (MMR simile)', scoreSpan(lv.scoreLobby), 'Gli altri 9 giocatori delle tue partite: il confronto più diretto con il tuo MMR'),
           lv.teamScore == null ? null : stat('Compagni di squadra superati', el('span', { class: scoreTone(lv.teamScore), text: `${fmt(lv.teamScore, 0)}% · ${fmt(lv.teamRank, 1)}° su 5` }),
-            'Quota di compagni con un punteggio partita più basso del tuo (tutti gli 8 parametri): 50% = giochi come loro')))),
+            'Quota di compagni con un punteggio partita più basso del tuo (tutti gli 8 parametri): 50% = giochi come loro'),
+          lv.winRate == null ? null : stat(`Win rate da ${roleLabel(lv.role)}`, el('span', { class: lv.resultSignal > 0 ? 'good' : lv.resultSignal < 0 ? 'bad' : '', text: wrRange }),
+            'Vittorie nel ruolo principale nelle stesse partite della stima. L\'intervallo contiene il win rate vero 8 volte su 10')))),
       levelHowTo(lv, rank));
   }
 
@@ -1597,7 +1631,7 @@
     const total = (lv.farmSignal || 0) + (lv.teamSignal || 0);
     const verdictText = farmPart == null ? 'Senza un rank in Solo/Duo non si può confrontare.'
       : `${farmPart}${teamPart ? `; ${teamPart}` : ''}. Somma ${total > 0 ? '+' : ''}${total === 0 ? '0' : String(total).replace('-', '−')}: `
-        + `${total > 0 ? 'sopra il tuo rank' : total < 0 ? 'sotto il tuo rank' : 'in linea con il rank'}.`;
+        + `statistiche ${total > 0 ? 'sopra il tuo rank' : total < 0 ? 'sotto il tuo rank' : 'in linea con il rank'}.`;
     return el('details', { class: 'lvl-how', open: '' },
       el('summary', { text: 'Come si calcola questo livello' }),
       el('ol', {},
@@ -1613,8 +1647,11 @@
         li(b('Incertezza: '), `rifacendo il calcolo 300 volte su campioni diversi delle tue partite, il risultato cade tra ${lv.lowLabel} e ${lv.highLabel} 8 volte su 10.`),
         lv.teamScore == null ? null : li(b('Confronto con i compagni: '), `in ogni partita i 5 giocatori della tua squadra vengono ordinati per punteggio partita, che usa tutti gli 8 parametri del radar (ognuno confrontato con il proprio ruolo). `,
           `Tra compagni il risultato è lo stesso, quindi vittoria o sconfitta non falsano il confronto. Superi in media il ${fmt(lv.teamScore, 0)}% dei compagni: 50% vuol dire giocare come i giocatori del tuo MMR.`),
-        li(b('Giudizio: '), 'il farm e il confronto con i compagni valgono un punto ciascuno (+1 sopra, −1 sotto, 0 in linea) e si sommano: ', verdictText)),
-      el('p', { class: 'sub', style: 'margin:8px 0 0', text: 'Non misura decisioni, gestione della mappa e comunicazione, che contano ma non si leggono nelle statistiche di Riot.' }));
+        li(b('Statistiche rispetto al rank: '), 'il farm e il confronto con i compagni valgono un punto ciascuno (+1 sopra, −1 sotto, 0 in linea) e si sommano: ', verdictText),
+        lv.winRate == null ? null : li(b('Risultati: '), `nelle stesse ${lv.wins + lv.losses} partite da ${role} hai vinto il ${pct(lv.winRate, 0)}. Con questo numero di partite il win rate vero sta tra il ${pct(lv.wrLow, 0)} e il ${pct(lv.wrHigh, 0)} 8 volte su 10 (intervallo di Wilson). `,
+          'Non entra nella somma, che descrive le statistiche: serve a vedere se le statistiche si traducono in vittorie, che sono ciò che muove il rank.')),
+      el('p', { class: 'sub', style: 'margin:8px 0 0', text: 'Non misura decisioni, gestione della mappa e comunicazione, che contano ma non si leggono nelle statistiche di Riot. '
+        + 'Il farm dipende anche dal campione: a parità di lega i tank e gli assassini farmano meno dei fighter, e la stima può spostarsi anche di due leghe.' }));
   }
 
   // ---------------------------------------------------------------- posizione nella squadra (segue i filtri)
@@ -1639,11 +1676,15 @@
     const avgRank = avg(tg.map((g) => g.teamRank));
     const beat = avg(tg.map((g) => (5 - g.teamRank) / 4));
     const best = share(tg, (g) => g.teamRank === 1);
+    // atteso: quante volte un giocatore dei tuoi ruoli e' il migliore della squadra nei benchmark (per i Support meno del 20%)
+    const rates = tg.map((g) => teamBestRate(g.role)).filter((v) => v != null);
+    const expected = rates.length === tg.length ? avg(rates) : null;
     const stat = (label, value, cls) => el('div', { class: 'stat' }, el('span', { text: label }), el('span', { class: cls || '', text: value }));
     $('team-stats').replaceChildren(
       stat('Posizione media', `${fmt(avgRank, 1)}° su 5`, avgRank < 3 ? 'good' : avgRank > 3 ? 'bad' : ''),
       stat('Compagni superati', pct(beat, 0), scoreTone(beat * 100)),
-      stat('Migliore della squadra (atteso 20%)', pct(best, 0), best > 0.2 ? 'good' : best < 0.2 ? 'bad' : ''),
+      expected == null ? stat('Migliore della squadra', pct(best, 0))
+        : stat(`Migliore della squadra (atteso ${pct(expected, 0)})`, pct(best, 0), best > expected ? 'good' : best < expected ? 'bad' : ''),
       stat('Posizione nelle vittorie / sconfitte', wins.length && losses.length ? `${fmt(avg(wins.map((g) => g.teamRank)), 1)}° / ${fmt(avg(losses.map((g) => g.teamRank)), 1)}°` : '–'),
       stat('Sconfitte da migliore della squadra', `${losses.filter((g) => g.teamRank === 1).length} su ${losses.length}`),
       stat('Posizione media su 10 giocatori', tg.some((g) => g.rank10 != null) ? `${fmt(avg(tg.filter((g) => g.rank10 != null).map((g) => g.rank10)), 1)}°` : '–'),
@@ -1711,7 +1752,9 @@
 
     const notes = [];
     if (a.invert) notes.push('Qui meno è meglio: il punteggio è invertito (100 = muori meno di tutti).');
-    if (a.biased) notes.push('Chi vince tende ad avere valori più alti: una parte della differenza con il riferimento è un effetto del risultato, non la sua causa.');
+    const gap = outcomeGap(a.key);
+    if (gap != null && isBiased(a)) notes.push(`Dipende molto dal risultato: nelle partite di riferimento di tutte le leghe questo punteggio è in media ${fmt(gap, 0)} punti più alto nelle vittorie che nelle sconfitte. Una parte della differenza con il riferimento è quindi un effetto del risultato, non la sua causa.`);
+    else if (gap != null) notes.push(`Dipende poco dal risultato: nelle partite di riferimento di tutte le leghe questo punteggio cambia in media di ${fmt(Math.abs(gap), 0)} punti tra vittorie e sconfitte.`);
     if (a.skip) notes.push(`Non si valuta per i ${a.skip.map(roleLabel).join(', ')}: ${a.skipWhy}.`);
 
     $('sheet-body').replaceChildren(
@@ -1793,10 +1836,15 @@
     const rows = IMPACT_KPIS.map((k) => ({ k, imp: winImpact(gs, k) })).filter((x) => x.imp).sort((p, q) => q.imp.gap - p.imp.gap);
     const host = $('impact');
     if (!rows.length) { host.replaceChildren(el('p', { class: 'empty', text: 'Servono almeno 10 partite nel filtro corrente.' })); return; }
+    const biased = rows.filter(({ k }) => isBiased(k));
+    const note = !ALL.calibration ? 'Correlazione, non causa: alcuni parametri salgono anche per effetto della vittoria.'
+      : biased.length ? `* Dipende molto dal risultato: nelle partite di riferimento il suo punteggio è almeno ${BIAS_GAP} punti più alto nelle vittorie che nelle sconfitte (${listText(biased.map(({ k }) => `${k.label} +${fmt(outcomeGap(k.gapKey || k.key), 0)}`))}). `
+        + 'Per questi parametri la differenza di win rate è in buona parte una conseguenza della vittoria, non una causa.'
+      : 'Nessuno di questi parametri dipende molto dal risultato, ma resta una correlazione, non una causa.';
     host.replaceChildren(table(['Parametro', 'Tua mediana', 'WR se meglio', 'WR se peggio', 'Differenza'],
-      rows.map(({ k, imp }) => ({ cells: [k.label + (k.biased ? ' *' : ''), k.f(imp.med), `${pct(winRate(imp.better), 0)} (${imp.better.length})`,
+      rows.map(({ k, imp }) => ({ cells: [k.label + (isBiased(k) ? ' *' : ''), k.f(imp.med), `${pct(winRate(imp.better), 0)} (${imp.better.length})`,
         `${pct(winRate(imp.worse), 0)} (${imp.worse.length})`, delta(imp.gap, 1, `${fmt(Math.abs(imp.gap) * 100, 0)} pt`)] }))),
-      el('p', { class: 'sub', style: 'margin:8px 0 0', text: '* Sale anche per effetto della vittoria (chi vince fa più kill, oro e danni alle torri): la differenza è in parte una conseguenza, non solo una causa. Il punteggio partita include alcuni di questi parametri.' }));
+      el('p', { class: 'sub', style: 'margin:8px 0 0', text: note }));
   }
 
   // ---------------------------------------------------------------- avversario di corsia
@@ -1995,6 +2043,17 @@
     const bench = BENCH[filters.bench] || {};
     const roleSizes = Object.entries(bench.roles || {}).map(([r, st]) => `${roleLabel(r)} ${st.n}`).join(', ');
     const tiers = BENCH_ORDER.filter((k) => k !== 'lobby' && BENCH[k]).map((k) => BENCH[k].label);
+    // Quanto i parametri dipendono dal risultato: scarto vittoria - sconfitta misurato sui benchmark, non scritto a mano
+    const outcomeText = () => {
+      if (!ALL.calibration) return ['Alcuni parametri crescono anche perché si sta vincendo.'];
+      const ranked = AXES.map((a) => ({ a, gap: outcomeGap(a.key) })).filter((x) => x.gap != null).sort((x, y) => y.gap - x.gap);
+      const name = (x) => `${x.a.label} (${signed(x.gap, 0)})`;
+      const most = ranked.filter((x) => x.gap >= BIAS_GAP), least = ranked.filter((x) => x.gap < BIAS_GAP).slice(-3).reverse();
+      // tra parentesi: punti in piu' nelle vittorie rispetto alle sconfitte
+      return [most.length ? `Nelle partite di riferimento di tutte le leghe, nelle vittorie il punteggio sale soprattutto in ${listText(most.map(name))}: `
+        + `questi parametri crescono in buona parte perché si sta vincendo (${BIAS_GAP} punti o più di differenza tra vittorie e sconfitte). ` : '',
+        least.length ? `I meno legati all'esito sono ${listText(least.map(name))}.` : ''];
+    };
 
     const intro = [
       section('Il punteggio da 0 a 100',
@@ -2005,7 +2064,7 @@
         p(strong('Un parametro nel radar'), ': la media dei punteggi delle tue partite. In pratica: confrontando una tua partita a caso con una del riferimento, quante volte su 100 fai meglio tu.'),
         p('Accanto al punteggio trovi il tuo ', strong('valore tipico'), ' (la mediana: metà delle tue partite sta sopra, metà sotto) e quello del riferimento negli stessi ruoli. ',
           'Il colore segue il punteggio: verde da 50 in su, rosa sotto 50.'),
-        p(strong('Support'), ': CS/min e CS a 10 minuti non si valutano, perché un Support che gioca bene lascia i minion al suo ADC. Gli altri 6 parametri sono gli stessi di tutti i ruoli: l\'impatto in combattimento conta il contributo migliore tra danni, cure e scudi, danni assorbiti, così un Support tank o incantatore non è penalizzato rispetto a un mago.')),
+        p(strong('Support'), ': CS/min e CS a 10 minuti non si valutano, perché un Support che gioca bene lascia i minion al suo ADC. Gli altri 6 parametri sono gli stessi di tutti i ruoli. L\'impatto in combattimento conta il contributo migliore tra danni e danni assorbiti, e per i Support anche cure e scudi ai compagni, così un Support tank o incantatore non è penalizzato rispetto a un mago. Negli altri ruoli cure e scudi restano fuori: valgono zero in circa 9 partite su 10.')),
       section('Con chi ti confronti',
         p(strong('La tua lobby'), ': gli altri 9 giocatori di tutte le tue partite in archivio. Il matchmaking li sceglie con un MMR simile al tuo, quindi è il confronto più diretto con il tuo livello reale.'),
         p(strong('Leghe'), tiers.length ? ` (${tiers.join(', ')})` : '', ': per ogni lega si prende a caso un campione di giocatori dalla classifica ufficiale (divisioni III e II, il centro della lega; per Master+ la classifica Master) e alcune loro partite Ranked Solo/Duo recenti. Ogni partita conta tutti e 10 i partecipanti. ',
@@ -2018,8 +2077,10 @@
         p(DATA.season ? `Per questo account: ${DATA.season.games} partite dal ${new Date(DATA.season.start).toLocaleDateString('it-IT', { dateStyle: 'long' })}. `
           + 'Con "Tutto lo storico" vedi anche le stagioni precedenti in archivio.' : 'Questo account non ha ancora partite Ranked Solo/Duo nella stagione in corso.')),
       section('Punteggio partita e costanza',
-        p(strong('Punteggio partita'), ': tutti i parametri di quella partita insieme (servono almeno 6 parametri disponibili). Si fa la media dei loro punteggi e la si confronta con la stessa media calcolata sulle partite del riferimento: ',
-          '70 significa che quella partita è stata migliore del 70% delle partite del riferimento nello stesso ruolo. È il modo più rapido per capire se hai giocato bene indipendentemente dal risultato. ',
+        p(strong('Punteggio partita'), ': tutti i parametri di quella partita insieme (servono almeno 6 parametri disponibili, 4 per i Support). Si fa la media dei loro punteggi e la si confronta con la stessa media calcolata sulle partite del riferimento ',
+          strong('con lo stesso risultato'), ': una vittoria con le vittorie, una sconfitta con le sconfitte. ',
+          '70 significa che quella partita è stata migliore del 70% delle partite del riferimento nello stesso ruolo e con lo stesso esito. ',
+          'Senza questa regola il punteggio direbbe soprattutto chi ha vinto, perché chi vince ha quasi sempre KDA e morti migliori. Così invece la partita tipica vale 50 sia nelle vittorie sia nelle sconfitte, e una sconfitta giocata bene ha un punteggio alto. ',
           'Il ', strong('voto'), ' lo traduce in lettere, come quelli di Riot: S da 90, A da 70, B da 40 (la partita tipica), C da 20, D sotto.'),
         p(strong('Costanza'), ': la deviazione standard dei punteggi partita. Come termine di paragone, le partite di tutto il riferimento messe insieme hanno circa ±29: più sei sotto, più sei regolare; intorno a ±30 alterni partite molto alte e molto basse.')),
       section('Il tuo livello',
@@ -2031,13 +2092,16 @@
         p(strong('Posizione nella squadra'), ': in ogni partita i 5 compagni vengono ordinati per punteggio partita, che usa tutti gli 8 parametri del radar (ognuno nel proprio ruolo). ',
           'Tra compagni il risultato è lo stesso, quindi una sconfitta non abbassa la tua posizione se i compagni hanno fatto peggio di te. Superare più del 50% dei compagni vuol dire giocare meglio dei giocatori del tuo MMR. ',
           'Come su OP.GG ci sono anche la posizione tra tutti e 10 i giocatori della partita e i titoli ', strong('MVP'), ' (migliore della squadra che vince) e ', strong('ACE'), ' (migliore di quella che perde).'),
-        p(strong('Sopra / sotto il tuo rank'), ': due misure, un punto ciascuna. Farm: +1 se tutto l\'intervallo sta sopra il tuo rank, −1 se sta tutto sotto, 0 altrimenti. ',
+        p(strong('Statistiche sopra / sotto il rank'), ': due misure, un punto ciascuna. Farm: +1 se tutto l\'intervallo sta sopra il tuo rank, −1 se sta tutto sotto, 0 altrimenti. ',
           'Compagni: +1 se superi più del 50% dei compagni anche nel caso peggiore dell\'intervallo, −1 se meno del 50% anche nel caso migliore, 0 altrimenti. Somma positiva = sopra, negativa = sotto, zero = in linea.'),
-        p('La stima guarda i numeri, non le decisioni: chi gioca bene la mappa o fa le scelte giuste negli scontri può avere un rank più alto delle sue statistiche.')),
+        p(strong('Non è una previsione'), ': descrive le statistiche, mentre il rank segue le vittorie. Per questo accanto c\'è il ', strong('win rate'), ' nel ruolo principale con il suo intervallo all\'80% (intervallo di Wilson): ',
+          'con 50 partite un win rate del 50% può valere davvero tra il 41% e il 59%. Se il giudizio e i risultati vanno in direzioni opposte, la pagina lo dice.'),
+        p('La stima guarda i numeri, non le decisioni: chi gioca bene la mappa o fa le scelte giuste negli scontri può avere un rank più alto delle sue statistiche. ',
+          'Il farm dipende anche dal campione: a parità di lega i tank e gli assassini farmano meno dei fighter, e la stima può spostarsi anche di due leghe.')),
       section('Cosa incide sulle tue vittorie',
         p('Per ogni parametro le tue partite vengono divise in due metà rispetto alla tua mediana (quelle esattamente sulla mediana sono escluse) e si confronta il win rate delle due metà. Più è grande la differenza, più quel parametro accompagna le tue vittorie.'),
-        p(strong('Attenzione'), ': è una correlazione, non una causa. Gold, kill participation e danni crescono anche perché si sta vincendo. ',
-          'I parametri più "puri", cioè meno influenzati dall\'esito, sono CS a 10 minuti, morti e visione.')),
+        p(strong('Attenzione'), ': è una correlazione, non una causa. ', ...outcomeText()),
+        p('Il punteggio partita non compare in questa tabella: confronta ogni partita con quelle dello stesso risultato, quindi per costruzione non dice nulla su vittoria o sconfitta.')),
       section('Avversario di corsia',
         p('È il giocatore nemico con il tuo stesso ruolo in quella partita (campo ', code('teamPosition'), '). Per Jungle e Support è il jungler o il support nemico.'),
         p(strong('Corsia vinta / persa'), ': Riot segna chi chiude la fase di corsia (14 minuti) con almeno il 20% di oro ed esperienza in più del proprio avversario (challenge ',
@@ -2067,7 +2131,7 @@
       section('Solo vs Duo e andamento nel tempo',
         p('Il radar in modalità "Solo vs Duo" calcola gli stessi punteggi separatamente per le due code; "Ultime 20 vs precedenti" mostra se stai migliorando.'),
         p('Le linee nel tempo sono medie mobili su 10 partite della stessa coda: ogni punto è la media delle ultime 10 partite Solo (o Duo) fino a quella data. ',
-          'Remake (sotto i 5 minuti) esclusi ovunque.')),
+          'Remake (sotto i 5 minuti) esclusi ovunque. Le partite sotto i 10 minuti, per esempio una resa per un giocatore assente, contano nel win rate ma non hanno punteggi: i valori al minuto non sarebbero confrontabili e i CS a 10 minuti non esistono.')),
     ];
     const role = mainRole(applyFilters());
     const axes = AXES.map((a) => el('section', {}, el('h3', {}, icon(a.key), document.createTextNode(`${a.axis} — ${a.label}`)),
@@ -2185,7 +2249,7 @@
     const rows = [...byChamp.entries()].sort((a, b) => b[1].length - a[1].length || winRate(b[1]) - winRate(a[1])).map(([champ, cg]) => ({
       champ,
       cells: [champIcon(champ), String(cg.length), pct(winRate(cg), 0), fmt(kda(cg), 2),
-        fmt(avg(cg.map((g) => g.cs / g.dur)), 1), fmt(avg(cg.map((g) => g.dmg / g.dur)), 0), pct(avg(cg.map((g) => g.kp)), 0),
+        fmt(avg(cg.map((g) => g.cs / g.dur)), 1), fmt(avg(cg.map((g) => g.dmg / g.dur)), 0), pct(avgOf(cg, (g) => g.kp), 0),
         dateLabel(Math.max(...cg.map((g) => g.ts)))],
     }));
     const host = $('champs');

@@ -226,12 +226,15 @@
   function levelLine(lv, rank) {
     if (!lv) return null;
     const estColor = TIER_COLORS[lv.tier] || TIER_COLORS.GOLD;
-    const verdicts = { above: ['good', ICON_UP, 'Sopra il rank'], inline: ['', ICON_EQ, 'In linea'], below: ['bad', ICON_DOWN, 'Sotto il rank'] };
+    // Il giudizio riguarda le statistiche (farm + compagni), non e' una previsione del rank
+    const verdicts = { above: ['good', ICON_UP, 'Statistiche sopra il rank'], inline: ['', ICON_EQ, 'Statistiche in linea'], below: ['bad', ICON_DOWN, 'Statistiche sotto il rank'] };
     const [cls, iconSvg, verdictText] = verdicts[lv.verdict] || ['', ICON_EQ, 'Rank n/d'];
-    const pill = el('span', { class: `verdict-pill ${cls}` });
+    const pill = el('span', { class: `verdict-pill ${cls}`, title: 'Descrive le statistiche (farm e confronto con i compagni), non prevede il rank' });
     pill.innerHTML = iconSvg;
     pill.append(document.createTextNode(verdictText));
-    if (lv.verdict !== 'inline' && lv.gap != null && gapText(lv.gap)) pill.append(el('span', { class: 'gap', text: `· ${gapText(lv.gap)}` }));
+    // la distanza misura solo il farm: si mostra solo se va nella stessa direzione del giudizio, che somma anche i compagni
+    const coherent = (lv.verdict === 'above' && lv.gap > 0) || (lv.verdict === 'below' && lv.gap < 0);
+    if (coherent && gapText(lv.gap)) pill.append(el('span', { class: 'gap', text: `· farm ${lv.gap > 0 ? '+' : '−'}${gapText(lv.gap)}` }));
 
     // Scala delle leghe: segmenti nei colori di lega, accesi quelli dentro l'intervallo probabile
     const inBand = (i) => i + 0.5 > lv.low && i - 0.5 < lv.high;
@@ -287,7 +290,8 @@
       squad = el('div', { class: 'squad' },
         el('div', {}, el('div', { class: 'squad-label', text: 'In squadra' }), slots,
           el('div', { class: 'squad-text' }, el('strong', { text: `${fmtNum(lv.teamRank)}°` }), document.createTextNode(' su 5 in media'),
-            lv.teamBest != null ? document.createTextNode(` · migliore nel ${Math.round(lv.teamBest * 100)}% delle partite`) : null)),
+            lv.teamBest != null ? document.createTextNode(` · migliore nel ${Math.round(lv.teamBest * 100)}% delle partite`
+              + (lv.teamBestExpected != null ? ` (atteso ${Math.round(lv.teamBestExpected * 100)}%)` : '')) : null)),
         el('div', {}, ring, el('span', { class: 'ring-caption', text: 'compagni superati' })));
     }
 

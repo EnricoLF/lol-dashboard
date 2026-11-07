@@ -13,10 +13,11 @@ dice nulla sul livello.
 
 from __future__ import annotations
 
+import math
 import random
 from collections import Counter
 
-from lol_metrics import ROLES, INVERTED, percentile_of, raw_game_score, row_axis_score, scored_axes
+from lol_metrics import ROLES, INVERTED, game_score, row_axis_score, scored_axes
 
 TIER_ORDER = ("IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER")
 TIER_NAMES = {"IRON": "Iron", "BRONZE": "Bronze", "SILVER": "Silver", "GOLD": "Gold", "PLATINUM": "Platinum",
@@ -175,8 +176,17 @@ def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: 
             "teamSignal": 1 if team_low > 0.5 else -1 if team_high < 0.5 else 0,
         }
 
-    # Giudizio: le due misure si sommano. Farm sopra il rank = +1, sotto = -1; superi piu' (o meno) della
-    # meta' dei compagni in modo netto (tutto l'intervallo 80%) = +1 (o -1). Totale > 0 sopra, < 0 sotto.
+    # Risultati reali nel ruolo principale: il rank segue le vittorie, quindi la pagina li mostra accanto al
+    # giudizio sulle statistiche (che non e' una previsione) e dice quando vanno in direzione opposta.
+    wins = sum(r["win"] for r in rows)
+    wr_low, wr_high = wilson(wins, len(rows))
+    results = {"wins": wins, "losses": len(rows) - wins, "winRate": round(wins / len(rows), 3),
+               "wrLow": round(wr_low, 3), "wrHigh": round(wr_high, 3),
+               "resultSignal": 1 if wr_low > 0.5 else -1 if wr_high < 0.5 else 0}
+
+    # Giudizio sulle statistiche: le due misure si sommano. Farm sopra il rank = +1, sotto = -1; superi piu'
+    # (o meno) della meta' dei compagni in modo netto (tutto l'intervallo 80%) = +1 (o -1). Totale > 0 sopra,
+    # < 0 sotto. Descrive come giochi, non dice dove andrai: per quello contano i risultati.
     current = rank_position(rank)
     farm_signal = None
     if current is not None:
@@ -218,6 +228,7 @@ def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: 
         "verdict": verdict,
         "farmSignal": farm_signal,
         **(team_info or {}),
+        **results,
         "curve": {t: round(v, 1) for t, v in zip(TIER_ORDER, curve)},
         "axesByRole": {role: list(keys) for role, keys in axes_by_role.items()},
         "axisLevels": axis_levels,
@@ -228,11 +239,15 @@ def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: 
 
 
 def overall_score(rows: list[dict], roles: dict) -> float | None:
-    """Media dei punteggi partita calibrati (tutti gli 8 parametri) rispetto a un riferimento."""
-    scores = []
-    for row in rows:
-        role_stats = roles.get(row["role"], {})
-        raw = raw_game_score(row, role_stats)
-        if raw is not None and "score" in role_stats:
-            scores.append(percentile_of(raw, role_stats["score"]["q"]))
+    """Media dei punteggi partita calibrati (tutti gli 8 parametri, a parita' di risultato) rispetto a un riferimento."""
+    scores = [s for row in rows if (s := game_score(row, roles)) is not None]
     return round(sum(scores) / len(scores), 1) if len(scores) >= MIN_GAMES else None
+
+
+def wilson(successes: int, total: int, level: float = INTERVAL) -> tuple[float, float]:
+    """Intervallo di Wilson per una proporzione (es. win rate): contiene il valore vero con probabilita' `level`."""
+    z = {0.8: 1.2816, 0.9: 1.6449, 0.95: 1.96}[level]
+    p = successes / total
+    centre = (p + z * z / (2 * total)) / (1 + z * z / total)
+    half = z * math.sqrt(p * (1 - p) / total + z * z / (4 * total * total)) / (1 + z * z / total)
+    return centre - half, centre + half

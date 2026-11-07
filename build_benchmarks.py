@@ -37,7 +37,7 @@ from datetime import datetime
 
 from lol_dashboard import BENCHMARK_FILE, load_json, save_json
 from lol_duo_analyzer import API_KEY, REGIONS, SCRIPT_DIR, AuthError, RiotAPIError, RiotClient, load_dotenv
-from lol_metrics import build_distribution, participant_metrics
+from lol_metrics import BENCHMARK_VERSION, build_distribution, outcome_gaps, participant_metrics, team_best_rates
 
 TIERS = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER"]  # MASTER = Master+
 PLATFORM_BY_REGION = {"europe": "euw1", "americas": "na1", "asia": "kr", "sea": "oc1"}
@@ -101,8 +101,32 @@ def summarize_tier(tier: str, matches: list[dict]) -> dict | None:
         return None
     print(f"  {tier}: {len(matches)} partite, {len(rows)} prestazioni, ruoli: "
           + ", ".join(f"{r} {s['n']}" for r, s in roles.items()))
-    return {"matches": len(matches), "samples": len(rows), "roles": roles,
+    return {"version": BENCHMARK_VERSION, "matches": len(matches), "samples": len(rows), "roles": roles,
             "matchIds": [m["metadata"]["matchId"] for m in matches]}
+
+
+def calibration(data: dict) -> dict | None:
+    """Misure ricavate dalle partite di tutte le leghe aggiornate, ognuna con le distribuzioni della sua lega:
+    di quanti punti ogni parametro sale nelle vittorie (outcomeGap) e quanto spesso ogni ruolo e' il migliore
+    della squadra (teamBest). La dashboard ne ricava le avvertenze e i valori attesi, invece di scriverli a mano."""
+    scored, matches = [], []
+    tiers = [t for t, v in data.get("tiers", {}).items() if v.get("version") == BENCHMARK_VERSION]
+    for tier in tiers:
+        roles = data["tiers"][tier]["roles"]
+        for mid in data["tiers"][tier].get("matchIds", []):
+            match = load_json(BENCHMARK_CACHE / f"{mid}.json", None)
+            if not match:
+                continue
+            matches.append((match, roles))
+            for p in match.get("info", {}).get("participants", []):
+                if (row := participant_metrics(match, p)) and row["role"] in roles:
+                    scored.append((row, roles[row["role"]]))
+    if not scored:
+        return None
+    result = {"version": BENCHMARK_VERSION, "tiers": tiers, "outcomeGap": outcome_gaps(scored), "teamBest": team_best_rates(matches)}
+    print("\nScarto vittoria - sconfitta (punti): " + ", ".join(f"{k} {v:+.0f}" for k, v in result["outcomeGap"].items()))
+    print("Migliore della squadra: " + ", ".join(f"{r} {v:.0%}" for r, v in result["teamBest"].items()))
+    return result
 
 
 def recompute(data: dict) -> None:
@@ -135,6 +159,7 @@ def main() -> int:
     if args.recompute:
         data = load_json(BENCHMARK_FILE, {})
         recompute(data)
+        data["calibration"] = calibration(data)
         save_json(BENCHMARK_FILE, data)
         print(f"\nBenchmark ricalcolati in {BENCHMARK_FILE}.")
         return 0
@@ -164,6 +189,12 @@ def main() -> int:
         print("\nInterrotto: le leghe gia' completate sono salvate.")
         return 130
 
+    data["calibration"] = calibration(data)
+    save_json(BENCHMARK_FILE, data)
+    stale = [t for t, v in data["tiers"].items() if v.get("version") != BENCHMARK_VERSION]
+    if stale:
+        print(f"\nLeghe calcolate con formule precedenti, ignorate dalla dashboard: {', '.join(stale)}. "
+              "Aggiornale con: python build_benchmarks.py --recompute")
     print(f"\nBenchmark salvati in {BENCHMARK_FILE}. Rigenera le dashboard con: python lol_dashboard.py")
     return 0
 

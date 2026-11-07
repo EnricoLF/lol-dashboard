@@ -25,16 +25,27 @@ METRIC_KEYS = ("kda", "deaths10", "csm", "cs10", "dpm", "hspm", "mitpm", "kp", "
 # Gli 8 parametri del punteggio (radar), uguali per tutti i ruoli. Stesse regole in dashboard_template.html
 # (AXES, impactRaw): tenerle allineate.
 SCORE_AXES = ("kda", "impm", "kp", "csm", "cs10", "deaths10", "vspm", "objp")
-# Impatto in combattimento: il migliore dei tre contributi, ognuno come percentile nel ruolo. Cosi' un
-# carry conta per i danni, un incantatore per cure e scudi, un tank per i danni assorbiti.
+# Impatto in combattimento: il migliore dei contributi, ognuno come percentile nel ruolo. Cosi' un carry conta
+# per i danni, un tank per i danni assorbiti e, da Support, un incantatore per cure e scudi. Negli altri ruoli
+# cure e scudi ai compagni restano fuori: valgono 0 in circa 9 partite su 10, quindi il loro percentile non
+# distingue nulla (0 cadeva a meta' del blocco di zeri, ~45, e una cura minima valeva gia' oltre 85).
 IMPACT_PARTS = ("dpm", "hspm", "mitpm")
+IMPACT_PARTS_BY_ROLE = {"UTILITY": IMPACT_PARTS}
+DEFAULT_IMPACT_PARTS = ("dpm", "mitpm")
 INVERTED = frozenset({"deaths10"})                 # meno e' meglio: il punteggio e' 100 - percentile
 NOT_SCORED = {"UTILITY": frozenset({"csm", "cs10"})}  # i Support forti lasciano i minion all'ADC
 MAX_MISSING_AXES = 2   # una partita ha un punteggio se mancano al massimo 2 dei suoi parametri
 MEAN_ONLY_KEYS = PING_TYPES  # per i singoli ping bastano media e mediana: niente quantili, file piu' leggero
 QUANTILE_STEPS = 20          # quantili ogni 5%: p0, p5, ..., p100 (21 valori)
 MIN_ROLE_SAMPLES = 15        # sotto questa soglia un ruolo non ha un riferimento affidabile
-REMAKE_MAX_SECONDS = 300
+# Sotto i 10 minuti (es. resa per un giocatore assente) una partita non si valuta: i valori al minuto non sono
+# confrontabili e i CS a 10 minuti non esistono. Resta nel win rate. Stessa soglia in dashboard_template.html.
+MIN_SCORED_MINUTES = 10
+# Versione delle formule usate per le distribuzioni di benchmarks.json: una lega calcolata con formule
+# diverse non si confronta con le partite di oggi (rigenerarla con build_benchmarks.py --recompute).
+BENCHMARK_VERSION = 2
+# Parametri di cui si misura quanto dipendono dal risultato (scarto vittoria - sconfitta nei benchmark)
+GAP_KEYS = (*SCORE_AXES, "gpm")
 
 
 def match_duration_minutes(info: dict) -> float:
@@ -45,10 +56,11 @@ def match_duration_minutes(info: dict) -> float:
     return seconds / 60
 
 
-def cs_at_10(participant: dict) -> int | None:
-    """CS (minion di corsia + mostri della giungla) nei primi 10 minuti, o None se mancano le challenges."""
+def cs_at_10(participant: dict, minutes: float) -> int | None:
+    """CS (minion di corsia + mostri della giungla) nei primi 10 minuti, o None se mancano le challenges o la
+    partita e' finita prima dei 10 minuti (Riot conta i CS fino alla fine, che qui arriva prima)."""
     challenges = participant.get("challenges") or {}
-    if "laneMinionsFirst10Minutes" not in challenges:
+    if "laneMinionsFirst10Minutes" not in challenges or minutes < MIN_SCORED_MINUTES:
         return None
     return round(challenges.get("laneMinionsFirst10Minutes", 0) + challenges.get("jungleCsBefore10Minutes", 0))
 
@@ -85,11 +97,11 @@ def ping_counts(participant: dict) -> dict:
 
 
 def participant_metrics(match: dict, participant: dict) -> dict | None:
-    """Metriche di un partecipante in una partita, o None per remake / ruolo sconosciuto."""
+    """Metriche di un partecipante in una partita, o None per remake, partite sotto i 10 minuti, ruolo sconosciuto."""
     info = match.get("info", {})
     minutes = match_duration_minutes(info)
     role = participant.get("teamPosition")
-    if minutes * 60 < REMAKE_MAX_SECONDS or participant.get("gameEndedInEarlySurrender") or role not in ROLES:
+    if minutes < MIN_SCORED_MINUTES or participant.get("gameEndedInEarlySurrender") or role not in ROLES:
         return None
 
     team_kills = sum(p.get("kills", 0) for p in info.get("participants", [])
@@ -97,14 +109,15 @@ def participant_metrics(match: dict, participant: dict) -> dict | None:
     kills, deaths, assists = participant.get("kills", 0), participant.get("deaths", 0), participant.get("assists", 0)
     return {
         "role": role,
+        "win": bool(participant.get("win")),
         "kda": (kills + assists) / max(1, deaths),
         "deaths10": deaths / (minutes / 10),
         "csm": (participant.get("totalMinionsKilled", 0) + participant.get("neutralMinionsKilled", 0)) / minutes,
-        "cs10": cs_at_10(participant),
+        "cs10": cs_at_10(participant, minutes),
         "dpm": participant.get("totalDamageDealtToChampions", 0) / minutes,
         "hspm": ally_protection(participant) / minutes,
         "mitpm": participant.get("damageSelfMitigated", 0) / minutes,
-        "kp": (kills + assists) / team_kills if team_kills else 0.0,
+        "kp": (kills + assists) / team_kills if team_kills else None,   # senza uccisioni di squadra non e' definita
         "vspm": participant.get("visionScore", 0) / minutes,
         "objp": objective_share(info, participant),
         "objm": participant.get("damageDealtToObjectives", 0) / minutes,
@@ -146,9 +159,18 @@ def percentile_of(value: float, q: list[float]) -> float:
     return (i + (value - q[i]) / (q[i + 1] - q[i])) * step
 
 
+def impact_parts(role: str) -> tuple[str, ...]:
+    """Contributi dell'indice di impatto nel ruolo: cure e scudi ai compagni solo per i Support."""
+    return IMPACT_PARTS_BY_ROLE.get(role, DEFAULT_IMPACT_PARTS)
+
+
 def impact_raw(row: dict, role_stats: dict) -> float | None:
-    """Indice di impatto (0-100): il migliore tra danni, cure e scudi, danni assorbiti, come percentile nel ruolo."""
-    parts = [percentile_of(row[k], role_stats[k]["q"]) for k in IMPACT_PARTS
+    """Indice di impatto (0-100): il migliore dei contributi del ruolo, come percentile nel ruolo.
+
+    Un contributo nullo vale 0, non il centro del blocco di partite a zero: non aver dato cure o scudi non
+    deve valere come un contributo nella media. Identica a impactRaw() in dashboard_template.html.
+    """
+    parts = [0.0 if row[k] <= 0 else percentile_of(row[k], role_stats[k]["q"]) for k in impact_parts(row["role"])
              if row.get(k) is not None and "q" in role_stats.get(k, {})]
     return max(parts) if parts else None
 
@@ -189,15 +211,27 @@ def raw_game_score(row: dict, role_stats: dict) -> float | None:
     return sum(scores) / len(scores) if len(scores) >= min_scored_axes(row["role"]) else None
 
 
+def calibrate(raw: float, win: bool, role_stats: dict) -> float:
+    """Punteggio grezzo -> percentile tra le partite del riferimento con lo stesso risultato.
+
+    Una vittoria si confronta con le vittorie, una sconfitta con le sconfitte: chi vince ha quasi sempre KDA e
+    morti migliori, e senza questa regola il punteggio direbbe soprattutto se la partita e' stata vinta.
+    Se il riferimento non ha abbastanza vittorie e sconfitte nel ruolo si usano tutte le sue partite.
+    Identica a calibrate() in dashboard_template.html.
+    """
+    if "scoreWin" in role_stats and "scoreLoss" in role_stats:
+        return percentile_of(raw, role_stats["scoreWin" if win else "scoreLoss"]["q"])
+    return percentile_of(raw, role_stats["score"]["q"]) if "score" in role_stats else raw
+
+
 def game_score(row: dict | None, roles: dict) -> float | None:
-    """Punteggio partita calibrato (0-100) rispetto a un riferimento {ruolo: distribuzioni}."""
+    """Punteggio partita calibrato (0-100) rispetto a un riferimento {ruolo: distribuzioni}: 50 = partita
+    tipica del riferimento, nello stesso ruolo e con lo stesso risultato."""
     if not row:
         return None
     role_stats = roles.get(row["role"], {})
     raw = raw_game_score(row, role_stats)
-    if raw is None:
-        return None
-    return percentile_of(raw, role_stats["score"]["q"]) if "score" in role_stats else raw
+    return None if raw is None else calibrate(raw, row["win"], role_stats)
 
 
 def team_positions(matches: list[dict], puuid: str, roles: dict) -> dict[str, dict]:
@@ -236,8 +270,9 @@ def team_positions(matches: list[dict], puuid: str, roles: dict) -> dict[str, di
 def build_distribution(rows: list[dict]) -> dict:
     """{ruolo: {metrica: {"q": quantili, "mean": media}, "n": campioni}} dalle righe di participant_metrics.
 
-    "score" e' la distribuzione del punteggio grezzo delle partite di riferimento: serve a calibrare il
-    punteggio partita, che cosi' diventa anch'esso un percentile (50 = partita tipica di quella lega).
+    "score" e' la distribuzione del punteggio grezzo delle partite di riferimento, "scoreWin" e "scoreLoss" la
+    stessa per le sole vittorie e le sole sconfitte: servono a calibrare il punteggio partita, che cosi' diventa
+    anch'esso un percentile (50 = partita tipica di quella lega con lo stesso risultato).
     """
     by_role: dict[str, list[dict]] = defaultdict(list)
     for row in rows:
@@ -262,8 +297,46 @@ def build_distribution(rows: list[dict]) -> dict:
         impact = [v for row in role_rows if (v := impact_raw(row, stats)) is not None]
         if len(impact) >= MIN_ROLE_SAMPLES:
             stats["impm"] = {"q": [round(v, 4) for v in quantiles(impact)], "mean": round(sum(impact) / len(impact), 4)}
-        raw = [s for row in role_rows if (s := raw_game_score(row, stats)) is not None]
-        if len(raw) >= MIN_ROLE_SAMPLES:
-            stats["score"] = {"q": [round(v, 4) for v in quantiles(raw)], "mean": round(sum(raw) / len(raw), 4)}
+        raw = [(s, row["win"]) for row in role_rows if (s := raw_game_score(row, stats)) is not None]
+        for key, values in (("score", [s for s, _ in raw]), ("scoreWin", [s for s, win in raw if win]),
+                            ("scoreLoss", [s for s, win in raw if not win])):
+            if len(values) >= MIN_ROLE_SAMPLES:
+                stats[key] = {"q": [round(v, 4) for v in quantiles(values)], "mean": round(sum(values) / len(values), 4)}
         result[role] = stats
     return result
+
+
+def outcome_gaps(scored: list[tuple[dict, dict]]) -> dict[str, float]:
+    """Di quanti punti (0-100) sale ogni parametro nelle vittorie rispetto alle sconfitte.
+
+    scored: coppie (riga di participant_metrics, distribuzioni del suo ruolo), es. tutte le prestazioni dei
+    benchmark ognuna con la sua lega. E' la misura di quanto un parametro sia una conseguenza del risultato.
+    """
+    sums = {key: [[], []] for key in GAP_KEYS}
+    for row, role_stats in scored:
+        for key in GAP_KEYS:
+            if key in SCORE_AXES and key not in scored_axes(row["role"]):
+                continue
+            if (s := row_axis_score(key, row, role_stats)) is not None:
+                sums[key][0 if row["win"] else 1].append(s)
+    return {key: round(sum(w) / len(w) - sum(l) / len(l), 1) for key, (w, l) in sums.items() if w and l}
+
+
+def team_best_rates(matches: list[tuple[dict, dict]]) -> dict[str, float]:
+    """Quota di partite in cui ogni ruolo e' il migliore della sua squadra per punteggio partita.
+
+    matches: coppie (partita, riferimento {ruolo: distribuzioni}). Con un punteggio equo varrebbe 20% per tutti;
+    serve come valore atteso quando si guarda quante volte sei stato il migliore della squadra.
+    """
+    best, seen = defaultdict(int), defaultdict(int)
+    for match, roles in matches:
+        players = [(p, game_score(participant_metrics(match, p), roles)) for p in match.get("info", {}).get("participants", [])]
+        for team_id in {p.get("teamId") for p, _ in players}:
+            team = [(p, s) for p, s in players if p.get("teamId") == team_id]
+            if len(team) != 5 or any(s is None for _, s in team):
+                continue
+            top = max(s for _, s in team)
+            for p, s in team:
+                seen[p["teamPosition"]] += 1
+                best[p["teamPosition"]] += s == top
+    return {role: round(best[role] / seen[role], 3) for role in ROLES if seen[role]}

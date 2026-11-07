@@ -40,7 +40,7 @@ import requests
 
 from lol_duo_analyzer import (
     API_KEY,
-    DEFAULT_DUO_THRESHOLD,
+    DEFAULT_DUO_GAMES,
     RANKED_SOLO_DUO_QUEUE,
     REGIONS,
     SCRIPT_DIR,
@@ -55,8 +55,8 @@ from lol_duo_analyzer import (
     parse_riot_id,
 )
 from lol_level import estimate_level
-from lol_metrics import (PING_TYPES, ally_protection, build_distribution, cs_at_10, objective_share, participant_metrics,
-                         ping_counts, team_positions)
+from lol_metrics import (BENCHMARK_VERSION, PING_TYPES, ally_protection, build_distribution, cs_at_10, match_duration_minutes,
+                         objective_share, participant_metrics, ping_counts, team_positions)
 
 CACHE_DIR = SCRIPT_DIR / ".cache_matches"
 ENV_FILE = SCRIPT_DIR / ".env"
@@ -348,9 +348,9 @@ def extract_extras(match: dict, puuid: str) -> dict:
     return {
         "queueId": info.get("queueId"),
         "gold": me.get("goldEarned", 0),
-        "kp": (me.get("kills", 0) + me.get("assists", 0)) / team_kills if team_kills else 0,
+        "kp": (me.get("kills", 0) + me.get("assists", 0)) / team_kills if team_kills else None,
         "dmgShare": me.get("totalDamageDealtToChampions", 0) / team_damage if team_damage else 0,
-        "cs10": cs_at_10(me),
+        "cs10": cs_at_10(me, match_duration_minutes(info)),
         "soloKills": challenges.get("soloKills", 0),
         "wards": me.get("wardsPlaced", 0),
         "ctrl": me.get("detectorWardsPlaced", 0),
@@ -397,7 +397,8 @@ def lane_opponent(info: dict, me: dict) -> dict:
     def challenge(source: dict, key: str) -> int | None:
         return round(source[key]) if key in source else None
 
-    my_cs10, opp_cs10 = cs_at_10(me), cs_at_10(opp)
+    minutes = match_duration_minutes(info)
+    my_cs10, opp_cs10 = cs_at_10(me, minutes), cs_at_10(opp, minutes)
     return {
         "oppChamp": opp.get("championName", "?"),
         "lane": lane,
@@ -414,7 +415,7 @@ def lane_opponent(info: dict, me: dict) -> dict:
     }
 
 
-def build_games(matches: list[dict], puuid: str, threshold: float) -> tuple[list[dict], list[dict], list[str]]:
+def build_games(matches: list[dict], puuid: str, duo_games: int) -> tuple[list[dict], list[dict], list[str]]:
     """Restituisce (partite per la dashboard, partner duo, nomi dei compagni).
 
     I compagni sono salvati come indici nella lista dei nomi per tenere leggero l'HTML.
@@ -426,7 +427,7 @@ def build_games(matches: list[dict], puuid: str, threshold: float) -> tuple[list
             pairs.append((record, extract_extras(match, puuid)))
 
     records = [r for r, _ in pairs]
-    partners = detect_duo_partners(records, threshold)
+    partners = detect_duo_partners(records, duo_games)
     classify_games(records, partners)
 
     player_index: dict[str, int] = {}
@@ -485,7 +486,7 @@ def account_slug(game_name: str, tag_line: str) -> str:
 
 
 def update_account(account: dict, client: RiotClient | None, args: argparse.Namespace,
-                   state: dict, lp_history: dict, tiers: dict) -> tuple[dict, dict] | None:
+                   state: dict, lp_history: dict, tiers: dict, calibration: dict | None = None) -> tuple[dict, dict] | None:
     """Aggiorna un account e ne prepara i dati.
 
     Restituisce (dati per la dashboard, riepilogo per la pagina indice), o None se non ci sono dati.
@@ -522,7 +523,7 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
         print("Genero la dashboard con i dati gia' in cache.")
 
     matches = load_cached_matches(puuid)
-    games, partners, players = build_games(matches, puuid, args.threshold)
+    games, partners, players = build_games(matches, puuid, args.duo_games)
     if not games:
         print("Nessuna partita Ranked Solo/Duo valida da mostrare.")
         return None
@@ -572,11 +573,14 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
         level = estimate_level(level_rows, tiers, history[-1] if history else None, lobby["roles"])
         if level:
             level["scope"] = scope
+            # quante volte un giocatore del tuo ruolo e' in media il migliore della squadra (non sempre il 20%)
+            level["teamBestExpected"] = ((calibration or {}).get("teamBest") or {}).get(level["role"])
             break
     if level:
-        verdicts = {"above": "sopra il rank", "below": "sotto il rank", "inline": "in linea con il rank"}
+        verdicts = {"above": "statistiche sopra il rank", "below": "statistiche sotto il rank", "inline": "statistiche in linea con il rank"}
         print(f"Livello stimato da {level['role']} ({level['games']} partite): {level['label']} "
-              f"({level['lowLabel']} - {level['highLabel']}), {verdicts.get(level['verdict'], 'rank non disponibile')}")
+              f"({level['lowLabel']} - {level['highLabel']}), {verdicts.get(level['verdict'], 'rank non disponibile')}, "
+              f"win rate {level['winRate']:.0%} ({level['wrLow']:.0%}-{level['wrHigh']:.0%})")
     generated_at = datetime.now().isoformat(timespec="seconds")
     payload = {
         "slug": account["slug"],
@@ -611,8 +615,8 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
         "rank": history[-1] if history else None,
         "season": bool(season_games),
         "role": main_role,
-        "level": level and {k: level.get(k) for k in ("label", "band", "lowLabel", "highLabel", "verdict", "gap", "tier", "scope", "role", "games", "teamRank",
-                      "teamScore", "teamBest", "position", "low", "high", "rankPosition")},
+        "level": level and {k: level.get(k) for k in ("label", "band", "lowLabel", "highLabel", "verdict", "gap", "farmSignal", "tier", "scope", "role", "games", "teamRank",
+                      "teamScore", "teamBest", "teamBestExpected", "position", "low", "high", "rankPosition", "winRate", "wrLow", "wrHigh", "resultSignal")},
         "games": len(shown),
         "winRate": sum(g["win"] for g in shown) / len(shown),
         "recentWinRate": sum(g["win"] for g in recent) / len(recent),
@@ -640,8 +644,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--count", type=int, default=100,
                         help="Match recenti da controllare a ogni aggiornamento (default: 100). "
                              "Al primo avvio puoi usare un valore piu' alto per recuperare piu' storico.")
-    parser.add_argument("--threshold", type=float, default=DEFAULT_DUO_THRESHOLD,
-                        help="Quota di partite per considerare un compagno partner duo (default: 0.15)")
+    parser.add_argument("--duo-games", type=int, default=DEFAULT_DUO_GAMES,
+                        help=f"Partite insieme per considerare un compagno partner duo (default: {DEFAULT_DUO_GAMES})")
     parser.add_argument("--api-key", help="Riot API Key (in alternativa: RIOT_API_KEY nel .env)")
     parser.add_argument("--output-dir", type=Path, default=SCRIPT_DIR / "output",
                         help="Cartella delle dashboard (default: ./output)")
@@ -652,9 +656,26 @@ def parse_args() -> argparse.Namespace:
         args.riot_ids = split_riot_ids(os.environ.get("RIOT_IDS") or os.environ.get("RIOT_ID"))
     if args.count < 1:
         parser.error("--count deve essere almeno 1")
-    if not 0 < args.threshold <= 1:
-        parser.error("--threshold deve essere compreso tra 0 e 1 (es. 0.15)")
+    if args.duo_games < 2:
+        parser.error("--duo-games deve essere almeno 2")
     return args
+
+
+def current_benchmarks(tier_file: dict) -> tuple[dict, dict | None, list[str]]:
+    """Leghe e calibrazione di benchmarks.json calcolate con le formule attuali, e leghe da rigenerare.
+
+    Una lega calcolata con formule diverse (es. il vecchio indice di impatto) darebbe punteggi sbagliati
+    senza che nulla lo segnali: meglio non usarla e dirlo.
+    """
+    tiers = {t: v for t, v in tier_file.get("tiers", {}).items() if v.get("version") == BENCHMARK_VERSION}
+    stale = [t for t in tier_file.get("tiers", {}) if t not in tiers]
+    calibration = tier_file.get("calibration")
+    if not calibration or calibration.get("version") != BENCHMARK_VERSION:
+        calibration = None
+    if stale:
+        print(f"Medie per lega calcolate con formule precedenti, non usate: {', '.join(stale)}. "
+              "Rigenerale con: python build_benchmarks.py --recompute")
+    return tiers, calibration, stale
 
 
 def main() -> int:
@@ -684,13 +705,14 @@ def main() -> int:
     state = load_json(STATE_FILE, {})
     lp_history = load_json(LP_FILE, {})
     tier_file = load_json(BENCHMARK_FILE, {})
+    tiers, calibration, stale_tiers = current_benchmarks(tier_file)
     ddragon = latest_ddragon_version()
 
     payloads, summaries = [], []
     try:
         client = ensure_api_key(client, args.region, accounts[0])
         for account in accounts:
-            result = update_account(account, client, args, state, lp_history, tier_file.get("tiers", {}))
+            result = update_account(account, client, args, state, lp_history, tiers, calibration)
             if result:
                 payloads.append(result[0])
                 summaries.append(result[1])
@@ -704,12 +726,15 @@ def main() -> int:
         render_template(TEMPLATE_FILE, {
             "generatedAt": datetime.now().isoformat(timespec="seconds"),
             "region": args.region,
-            "threshold": args.threshold,
+            "duoGames": args.duo_games,
             "ddragon": ddragon,
             "benchmarkDate": tier_file.get("generatedAt"),
+            "staleTiers": stale_tiers,
+            # scarto vittoria - sconfitta di ogni parametro e quota "migliore della squadra" per ruolo
+            "calibration": calibration and {k: calibration[k] for k in ("outcomeGap", "teamBest")},
             "tierBenchmarks": {
                 tier: {"label": "Master+" if tier == "MASTER" else tier.capitalize(), "matches": t["matches"], "roles": t["roles"]}
-                for tier, t in tier_file.get("tiers", {}).items()
+                for tier, t in tiers.items()
             },
             "accounts": payloads,
         }, dashboard)

@@ -7,7 +7,7 @@ ufficiali di Riot Games (Account-V1 + Match-V5) e confronta le prestazioni
 giocate in Solo Queue con quelle giocate in Duo Queue.
 
 I partner di duo vengono riconosciuti automaticamente: un compagno di squadra
-che compare in almeno il 15% delle partite analizzate e' considerato "Partner Duo".
+con cui hai giocato almeno 3 partite e' considerato "Partner Duo".
 
 Uso:
     python lol_duo_analyzer.py --riot-id "Nome#TAG" --region europe --count 100
@@ -46,8 +46,10 @@ API_KEY = ""  # es. "RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 RANKED_SOLO_DUO_QUEUE = 420
-DEFAULT_DUO_THRESHOLD = 0.15   # quota minima di partite condivise per essere "Partner Duo"
-MIN_DUO_GAMES = 2              # evita falsi positivi quando si analizzano pochissime partite
+# Partite insieme per essere "Partner Duo". Una soglia fissa, non una quota dell'archivio: la quota cresce con
+# lo storico (con 300 partite il 15% sono 45) e la stessa coppia risultava Duo per un account e Solo per l'altro.
+# Nelle partite in cache uno sconosciuto non capita mai in squadra piu' di 2 volte.
+DEFAULT_DUO_GAMES = 3
 REMAKE_MAX_SECONDS = 300       # partite sotto i 5 minuti sono considerate remake
 MAX_IDS_PER_REQUEST = 100      # limite massimo del parametro "count" di Match-V5
 
@@ -317,13 +319,12 @@ def extract_game(match: dict, puuid: str) -> GameRecord | None:
 # Rilevamento partner duo e classificazione
 # ---------------------------------------------------------------------------
 
-def detect_duo_partners(games: list[GameRecord], threshold: float) -> dict[str, tuple[str, int]]:
-    """Trova i compagni presenti in almeno `threshold` delle partite.
+def detect_duo_partners(games: list[GameRecord], min_games: int = DEFAULT_DUO_GAMES) -> dict[str, tuple[str, int]]:
+    """Trova i compagni presenti in squadra in almeno `min_games` partite.
 
     Restituisce {puuid: (Riot ID piu' recente, numero di partite insieme)}.
     """
     counts = Counter(puuid for g in games for puuid in g.teammates)
-    min_games = max(MIN_DUO_GAMES, threshold * len(games))
 
     # Le partite sono ordinate dalla piu' recente: il primo nome trovato e' quello attuale
     latest_name: dict[str, str] = {}
@@ -481,12 +482,12 @@ def write_matches_csv(path: Path, games: list[GameRecord]) -> None:
 
 def build_report_header(riot_id: str, region: str, requested: int, found: int,
                         games: list[GameRecord], partners: dict[str, tuple[str, int]],
-                        threshold: float) -> list[str]:
+                        duo_games: int) -> list[str]:
     lines = [
         f"Giocatore:          {riot_id} ({region})",
         f"Match richiesti:    {requested}  |  trovati: {found}  |  analizzati: {len(games)} "
         f"(esclusi remake/errori: {found - len(games)})",
-        f"Soglia partner duo: {threshold:.0%} delle partite (min {MIN_DUO_GAMES})",
+        f"Soglia partner duo: almeno {duo_games} partite insieme",
     ]
     if partners:
         lines.append("Partner duo rilevati:")
@@ -528,8 +529,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--region", choices=REGIONS, default="europe",
                         help="Cluster regionale (default: europe, per EUW/EUNE)")
     parser.add_argument("--count", type=int, default=100, help="Numero di match da analizzare (default: 100)")
-    parser.add_argument("--threshold", type=float, default=DEFAULT_DUO_THRESHOLD,
-                        help="Quota di partite per considerare un compagno partner duo (default: 0.15)")
+    parser.add_argument("--duo-games", type=int, default=DEFAULT_DUO_GAMES,
+                        help=f"Partite insieme per considerare un compagno partner duo (default: {DEFAULT_DUO_GAMES})")
     parser.add_argument("--api-key", help="Riot API Key (in alternativa: RIOT_API_KEY o file .env)")
     parser.add_argument("--output-dir", type=Path, default=SCRIPT_DIR / "output",
                         help="Cartella dei report (default: ./output)")
@@ -537,8 +538,8 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.count < 1:
         parser.error("--count deve essere almeno 1")
-    if not 0 < args.threshold <= 1:
-        parser.error("--threshold deve essere compreso tra 0 e 1 (es. 0.15)")
+    if args.duo_games < 2:
+        parser.error("--duo-games deve essere almeno 2")
     return args
 
 
@@ -603,14 +604,14 @@ def main() -> int:
         print("Nessuna partita valida da analizzare (solo remake?).")
         return 1
 
-    partners = detect_duo_partners(games, args.threshold)
+    partners = detect_duo_partners(games, args.duo_games)
     classify_games(games, partners)
     summary = compute_summary(games, partners)
     rows = summary_rows(summary)
 
     full_riot_id = f"{game_name}#{tag_line}"
     header = build_report_header(full_riot_id, args.region, args.count, len(match_ids),
-                                 games, partners, args.threshold)
+                                 games, partners, args.duo_games)
 
     # --- Report a terminale ---
     print("\n" + "=" * 70)
