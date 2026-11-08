@@ -67,22 +67,25 @@
   .meta { color: var(--muted); font-size: 12.5px; }
   /* Scheda "scouting": livello stimato sulla scala delle leghe + posizione nella squadra */
   .scout {
-    position: relative; display: grid; gap: 12px; padding: 14px 14px 12px; border-radius: 8px; border: 1px solid var(--line);
+    /* minmax(0, 1fr): un contenuto largo non deve allargare la colonna oltre la scheda */
+    position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 14px 14px 12px; border-radius: 8px; border: 1px solid var(--line);
     background:
       radial-gradient(240px 120px at 0% 0%, color-mix(in srgb, var(--est) 16%, transparent), transparent 70%),
       linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.005));
   }
-  .scout-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .scout-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px 10px; }
   .scout-kicker { font: 600 10.5px var(--display); text-transform: uppercase; letter-spacing: .16em; color: var(--muted); }
   .scout-level { display: flex; align-items: baseline; gap: 7px; margin-top: 1px; }
   .scout-level .tier { font: 700 30px/1 var(--display); color: var(--est); text-shadow: 0 0 18px color-mix(in srgb, var(--est) 45%, transparent); letter-spacing: .01em; }
   .scout-level .band { font: 600 13px var(--display); text-transform: uppercase; letter-spacing: .14em; color: var(--text-2); }
   .verdict-pill {
-    display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: 999px; white-space: nowrap;
+    /* va a capo tra il giudizio e la distanza se la scheda e' stretta, mai dentro le frasi */
+    display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 6px; max-width: 100%; padding: 4px 10px 4px 8px; border-radius: 13px;
     font: 600 11.5px var(--display); text-transform: uppercase; letter-spacing: .08em; color: var(--text-2);
     border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03);
   }
   .verdict-pill svg { width: 12px; height: 12px; }
+  .verdict-pill span { white-space: nowrap; }
   .verdict-pill.good { color: var(--good-text); border-color: rgba(69, 211, 195, .35); background: rgba(69, 211, 195, .08); }
   .verdict-pill.bad { color: var(--bad-text); border-color: rgba(242, 117, 159, .35); background: rgba(242, 117, 159, .08); }
   .verdict-pill .gap { color: var(--text); opacity: .85; }
@@ -113,7 +116,7 @@
   .ladder-letters b.hit { color: var(--c); opacity: 1; }
   @keyframes slide { from { left: var(--from); opacity: 0; } 20% { opacity: 1; } to { left: var(--to); } }
 
-  .squad { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center; padding-top: 11px; border-top: 1px dashed rgba(255, 255, 255, 0.08); }
+  .squad { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; padding-top: 11px; border-top: 1px dashed rgba(255, 255, 255, 0.08); }
   .squad-label { font: 600 10.5px var(--display); text-transform: uppercase; letter-spacing: .16em; color: var(--muted); }
   .slots { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 9px; }
   .slots span { height: 22px; display: grid; place-items: center; border-radius: 4px; font: 600 11px var(--display); color: var(--muted); background: rgba(255, 255, 255, 0.035); border: 1px solid var(--line); }
@@ -231,7 +234,7 @@
     const [cls, iconSvg, verdictText] = verdicts[lv.verdict] || ['', ICON_EQ, 'Rank n/d'];
     const pill = el('span', { class: `verdict-pill ${cls}`, title: 'Descrive le statistiche (farm e confronto con i compagni), non prevede il rank' });
     pill.innerHTML = iconSvg;
-    pill.append(document.createTextNode(verdictText));
+    pill.append(el('span', { text: verdictText }));
     // la distanza misura solo il farm: si mostra solo se va nella stessa direzione del giudizio, che somma anche i compagni
     const coherent = (lv.verdict === 'above' && lv.gap > 0) || (lv.verdict === 'below' && lv.gap < 0);
     if (coherent && gapText(lv.gap)) pill.append(el('span', { class: 'gap', text: `· farm ${lv.gap > 0 ? '+' : '−'}${gapText(lv.gap)}` }));
