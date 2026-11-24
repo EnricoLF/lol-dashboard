@@ -570,14 +570,15 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
             if match_id in level_ids and me and (row := participant_metrics(m, me)):
                 position = team_pos.get(match_id)
                 level_rows.append({**row, "team": position and position["beat"], "teamRank": position and position["rank"]})
-        level = estimate_level(level_rows, tiers, history[-1] if history else None, lobby["roles"])
+        level = estimate_level(level_rows, tiers, history[-1] if history else None, lobby["roles"], lobby_rows)
         if level:
             level["scope"] = scope
             # quante volte un giocatore del tuo ruolo e' in media il migliore della squadra (non sempre il 20%)
             level["teamBestExpected"] = ((calibration or {}).get("teamBest") or {}).get(level["role"])
             break
     if level:
-        verdicts = {"above": "statistiche sopra il rank", "below": "statistiche sotto il rank", "inline": "statistiche in linea con il rank"}
+        verdicts = {"above": "statistiche sopra il rank", "below": "statistiche sotto il rank", "inline": "statistiche in linea con il rank",
+                    "mixed": "statistiche contrastanti"}
         print(f"Livello stimato da {level['role']} ({level['games']} partite): {level['label']} "
               f"({level['lowLabel']} - {level['highLabel']}), {verdicts.get(level['verdict'], 'rank non disponibile')}, "
               f"win rate {level['winRate']:.0%} ({level['wrLow']:.0%}-{level['wrHigh']:.0%})")
@@ -616,7 +617,8 @@ def update_account(account: dict, client: RiotClient | None, args: argparse.Name
         "season": bool(season_games),
         "role": main_role,
         "level": level and {k: level.get(k) for k in ("label", "band", "lowLabel", "highLabel", "verdict", "gap", "farmSignal", "tier", "scope", "role", "games", "teamRank",
-                      "teamScore", "teamBest", "teamBestExpected", "position", "low", "high", "rankPosition", "winRate", "wrLow", "wrHigh", "resultSignal")},
+                      "teamScore", "teamBest", "teamBestExpected", "position", "low", "high", "rankPosition", "winRate", "wrLow", "wrHigh", "resultSignal",
+                      "teamSignal", "convScore", "convSignal", "farmOnly")},
         "games": len(shown),
         "winRate": sum(g["win"] for g in shown) / len(shown),
         "recentWinRate": sum(g["win"] for g in recent) / len(recent),

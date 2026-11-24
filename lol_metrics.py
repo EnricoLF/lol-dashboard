@@ -46,6 +46,12 @@ MIN_SCORED_MINUTES = 10
 BENCHMARK_VERSION = 2
 # Parametri di cui si misura quanto dipendono dal risultato (scarto vittoria - sconfitta nei benchmark)
 GAP_KEYS = (*SCORE_AXES, "gpm")
+# Conversione in obiettivi: danni alle torri al minuto, torri distrutte (uccisione o assist) e placche. Nelle
+# partite dei benchmark (1000 per lega, 24/11/2026) sono tra i parametri piu' legati alla vittoria in ogni
+# ruolo e lega (AUC 0,77-0,88; il farm 0,46-0,73). Non sono nel radar: servono al giudizio sul livello, che
+# altrimenti in alcuni ruoli guarderebbe solo il farm. Non sono in METRIC_KEYS: niente distribuzioni nei
+# benchmark, il confronto si fa con la lobby (stesso MMR).
+CONVERSION_KEYS = ("towerDpm", "turretTk", "plates")
 
 
 def match_duration_minutes(info: dict) -> float:
@@ -122,6 +128,9 @@ def participant_metrics(match: dict, participant: dict) -> dict | None:
         "objp": objective_share(info, participant),
         "objm": participant.get("damageDealtToObjectives", 0) / minutes,
         "gpm": participant.get("goldEarned", 0) / minutes,
+        "towerDpm": participant.get("damageDealtToTurrets", 0) / minutes,
+        "turretTk": participant.get("turretTakedowns", 0),
+        "plates": (participant.get("challenges") or {}).get("turretPlatesTaken"),   # None senza challenges
         **ping_counts(participant),
     }
 

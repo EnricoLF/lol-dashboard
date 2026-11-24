@@ -634,6 +634,7 @@
   const signed = (v, d = 1) => (v == null || !isFinite(v) ? '–' : (v > 0 ? '+' : '') + fmt(v, d));
   const share = (gs, pred) => (gs.length ? gs.filter(pred).length / gs.length : null);
   const cap = (s) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : '');
+  const capFirst = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
   const roleLabel = (r) => ROLE_LABEL[r] || '?';
   const dateLabel = (ts, withTime = false) => new Date(ts).toLocaleString('it-IT',
     withTime ? { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' } : { day: '2-digit', month: '2-digit', year: '2-digit' });
@@ -1499,6 +1500,17 @@
   };
   // Parametri usati per la stima, raggruppati per ruolo: "Top e Mid: CS/min, CS a 10 min"
   const listText = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}` : xs[0] || 'nessuno');
+  // Le tre misure del giudizio (farm, compagni, torri e placche): quali sono sopra e quali sotto il rank
+  const levelSignals = (lv) => [['il farm', lv.farmSignal], ['il confronto con i compagni', lv.teamSignal], ['torri e placche', lv.convSignal]]
+    .filter(([, s]) => s != null);
+  function mixedText(lv) {
+    const names = (sign) => levelSignals(lv).filter(([, s]) => s === sign).map(([n]) => n);
+    const up = names(1), down = names(-1);
+    const text = `Le misure vanno in direzioni opposte: sopra il rank ${listText(up)}, sotto ${listText(down)}.`;
+    if (lv.convSignal < 0) return `${text} Torri e placche sono tra i parametri più legati alla vittoria, molto più del farm: finché non migliorano, le statistiche non dicono che sei sopra il rank. Il rank sale solo con le vittorie.`;
+    if (lv.convSignal > 0) return `${text} Torri e placche sono tra i parametri più legati alla vittoria: converti bene, anche se il resto delle statistiche è sotto il rank.`;
+    return `${text} Il rank sale solo con le vittorie.`;
+  }
   function renderLevel() {
     const lv = DATA.level, host = $('level');
     if (!lv) {
@@ -1517,6 +1529,7 @@
       above: ['good', 'Statistiche sopra il rank', 'È una descrizione di come giochi, non una previsione: il rank sale solo con le vittorie.'],
       inline: ['', 'Statistiche in linea con il rank', 'Per salire servono statistiche migliori nei parametri qui sotto, o più vittorie con le stesse statistiche.'],
       below: ['bad', 'Statistiche sotto il rank', 'Può succedere se giochi spesso in duo con giocatori più forti, se stai provando campioni nuovi, se giochi campioni che farmano poco (per esempio i tank) o se il tuo punto di forza non si vede nei numeri (decisioni, gestione della mappa).'],
+      mixed: ['', 'Statistiche contrastanti', mixedText(lv)],
     };
     const [cls, tag, conclusion] = VERDICT[lv.verdict] || ['', 'Rank non disponibile', ''];
     // Risultati reali nel ruolo principale, con l'intervallo all'80%; si dice quando smentiscono il giudizio
@@ -1534,7 +1547,10 @@
     const teamText = lv.teamScore == null ? '.'
       : `; in squadra superi in media il ${fmt(lv.teamScore, 0)}% dei compagni (posizione media ${fmt(lv.teamRank, 1)}° su 5), `
         + (lv.teamSignal > 0 ? 'più dei giocatori del tuo MMR.' : lv.teamSignal < 0 ? 'meno dei giocatori del tuo MMR.' : 'come i giocatori del tuo MMR.');
-    const text = `${farmText}${lv.farmSignal == null ? '' : teamText} ${conclusion}`.trim();
+    const convText = lv.convScore == null ? ''
+      : ` In torri e placche, a parità di risultato, superi in media il ${fmt(lv.convScore, 0)}% dei giocatori da ${roleLabel(lv.role)} della tua lobby: `
+        + (lv.convSignal > 0 ? 'converti più dei giocatori del tuo MMR.' : lv.convSignal < 0 ? 'converti meno dei giocatori del tuo MMR.' : 'come i giocatori del tuo MMR.');
+    const text = `${farmText}${lv.farmSignal == null ? '' : teamText + convText} ${conclusion}`.trim();
 
     // Scala delle leghe: rank attuale sopra, livello stimato (con intervallo probabile) sotto
     const scale = el('div', { class: 'lvl-scale' });
@@ -1556,7 +1572,7 @@
       return el('div', { class: `lvl-mark ${kind}` }, pin);
     };
     scale.append(rank && lv.rankPosition != null ? mark(lv.rankPosition, `Rank: ${rankName(rank)}`, 'rank') : el('div', { class: 'lvl-mark-space' }),
-      bar, mark(lv.position, `Prestazioni: ${lv.label}`, 'est'));
+      bar, mark(lv.position, `${lv.farmOnly ? 'Farm' : 'Prestazioni'}: ${lv.label}`, 'est'));
 
     // Punteggio nei parametri che distinguono le leghe, se giocassi in ciascuna lega (50 = giocatore tipico)
     const curve = el('div', { class: 'lvl-curve', role: 'img', 'aria-label': 'Il tuo punteggio confrontato con ogni lega' },
@@ -1580,7 +1596,7 @@
 
     host.replaceChildren(el('div', { class: 'level' },
       el('div', { class: 'lvl-main' },
-        el('div', { class: 'lvl-head' }, el('div', {}, el('span', { class: 'lvl-kicker', text: `Lega più vicina alle tue prestazioni da ${roleLabel(lv.role)}` }),
+        el('div', { class: 'lvl-head' }, el('div', {}, el('span', { class: 'lvl-kicker', text: `Lega più vicina ${lv.farmOnly ? 'al tuo farm' : 'alle tue prestazioni'} da ${roleLabel(lv.role)}` }),
           el('div', { class: 'lvl-big', text: lv.label })), el('span', { class: `verdict-tag ${cls}`, text: tag })),
         el('p', { class: 'lvl-text', text }),
         resultText ? el('p', { class: 'lvl-text', text: resultText }) : null,
@@ -1594,6 +1610,8 @@
           stat('Contro la tua lobby (MMR simile)', scoreSpan(lv.scoreLobby), 'Gli altri 9 giocatori delle tue partite: il confronto più diretto con il tuo MMR'),
           lv.teamScore == null ? null : stat('Compagni di squadra superati', el('span', { class: scoreTone(lv.teamScore), text: `${fmt(lv.teamScore, 0)}% · ${fmt(lv.teamRank, 1)}° su 5` }),
             'Quota di compagni con un punteggio partita più basso del tuo (tutti gli 8 parametri): 50% = giochi come loro'),
+          lv.convScore == null ? null : stat('Torri e placche, a parità di risultato', el('span', { class: lv.convSignal > 0 ? 'good' : lv.convSignal < 0 ? 'bad' : '', text: `${fmt(lv.convScore, 0)}/100 (${fmt(lv.convLow, 0)}–${fmt(lv.convHigh, 0)})` }),
+            `Danni alle torri, torri distrutte e placche rispetto ai giocatori da ${roleLabel(lv.role)} della tua lobby con lo stesso risultato: 50 = come i giocatori del tuo MMR. Tra parentesi l'intervallo 80%`),
           lv.winRate == null ? null : stat(`Win rate da ${roleLabel(lv.role)}`, el('span', { class: lv.resultSignal > 0 ? 'good' : lv.resultSignal < 0 ? 'bad' : '', text: wrRange }),
             'Vittorie nel ruolo principale nelle stesse partite della stima. L\'intervallo contiene il win rate vero 8 volte su 10')))),
       levelHowTo(lv, rank));
@@ -1628,17 +1646,23 @@
       : `il tuo rank (${rankName(rank)}) cade dentro l'intervallo del farm, o a meno di una divisione (0)`;
     const teamPart = lv.teamScore == null ? null
       : `i compagni superati sono ${fmt(lv.teamLow, 0)}-${fmt(lv.teamHigh, 0)}% 8 volte su 10, quindi ${lv.teamSignal > 0 ? 'sempre sopra il 50%' : lv.teamSignal < 0 ? 'sempre sotto il 50%' : 'a cavallo del 50%'} (${signed1(lv.teamSignal)})`;
-    const total = (lv.farmSignal || 0) + (lv.teamSignal || 0);
+    const convPart = lv.convScore == null ? null
+      : `torri e placche valgono ${fmt(lv.convLow, 0)}-${fmt(lv.convHigh, 0)} 8 volte su 10, quindi ${lv.convSignal > 0 ? 'sempre sopra 50' : lv.convSignal < 0 ? 'sempre sotto 50' : 'a cavallo di 50'} (${signed1(lv.convSignal)})`;
+    const VERDICT_NAMES = { above: 'statistiche sopra il tuo rank', below: 'statistiche sotto il tuo rank', inline: 'statistiche in linea con il rank', mixed: 'statistiche contrastanti' };
     const verdictText = farmPart == null ? 'Senza un rank in Solo/Duo non si può confrontare.'
-      : `${farmPart}${teamPart ? `; ${teamPart}` : ''}. Somma ${total > 0 ? '+' : ''}${total === 0 ? '0' : String(total).replace('-', '−')}: `
-        + `statistiche ${total > 0 ? 'sopra il tuo rank' : total < 0 ? 'sotto il tuo rank' : 'in linea con il rank'}.`;
+      : `${capFirst([farmPart, teamPart, convPart].filter(Boolean).join('; '))}. Risultato: ${VERDICT_NAMES[lv.verdict] || 'non disponibile'}.`;
+    // Conversione: i tuoi valori medi e quelli della lobby nello stesso ruolo, pesati come i tuoi risultati
+    const CONV_NAMES = { towerDpm: ['danni alle torri al minuto', 0], turretTk: ['torri distrutte (uccisione o assist)', 1], plates: ['placche', 1] };
+    const convValues = Object.entries(lv.convAxes || {}).filter(([k]) => CONV_NAMES[k])
+      .map(([k, v]) => `${CONV_NAMES[k][0]} ${fmt(v.you, CONV_NAMES[k][1])} contro ${fmt(v.lobby, CONV_NAMES[k][1])}`);
     return el('details', { class: 'lvl-how', open: '' },
       el('summary', { text: 'Come si calcola questo livello' }),
       el('ol', {},
         li(b('Partite: '), `le ${lv.games} partite ${lv.scope === 'season' ? 'della stagione in corso' : 'più recenti'} da ${role}, il ruolo che giochi di più.`,
           others ? ` Le altre ${others}, in altri ruoli, non contano: mescolare i ruoli abbasserebbe la stima di chi gioca bene il suo ruolo e peggio quelli secondari.` : ''),
         li(b('Parametri: '), `solo quelli che da ${role} cambiano davvero da una lega all'altra: ${listText(keys.map((k) => axisByKey(k).label))}. `,
-          'KDA, morti, impatto e obiettivi restano quasi uguali da Iron a Master+ (ogni uccisione è la morte di qualcun altro, ogni torre presa è persa da qualcuno): dicono come giochi rispetto agli altri giocatori della partita, non in che lega saresti. Per questo contano nel confronto con i compagni qui sotto.'),
+          'KDA, morti, impatto e obiettivi restano quasi uguali da Iron a Master+ (ogni uccisione è la morte di qualcun altro, ogni torre presa è persa da qualcuno): dicono come giochi rispetto agli altri giocatori della partita, non in che lega saresti. Per questo contano nel confronto con i compagni e nella conversione qui sotto.',
+          lv.farmOnly ? ` Da ${role} quindi il livello misura solo il farm, che pesa poco sulla vittoria: per questo il giudizio guarda anche torri e placche.` : ''),
         li(b('Confronto con ogni lega: '), `ogni tua partita viene confrontata con i ${role} di ogni lega (circa 500 prestazioni per lega e ruolo).`,
           ex && you != null && sample.length ? ` Esempio, ${ex.label}: il tuo valore tipico è ${ex.f(you)}, il ${role} tipico fa ${listText(sample)}.` : ''),
         li(b('Punteggio per lega: '), 'per ogni lega si calcola quante volte su 100 fai meglio di un suo giocatore. Salendo di lega il punteggio scende: ',
@@ -1647,11 +1671,15 @@
         li(b('Incertezza: '), `rifacendo il calcolo 300 volte su campioni diversi delle tue partite, il risultato cade tra ${lv.lowLabel} e ${lv.highLabel} 8 volte su 10.`),
         lv.teamScore == null ? null : li(b('Confronto con i compagni: '), `in ogni partita i 5 giocatori della tua squadra vengono ordinati per punteggio partita, che usa tutti gli 8 parametri del radar (ognuno confrontato con il proprio ruolo). `,
           `Tra compagni il risultato è lo stesso, quindi vittoria o sconfitta non falsano il confronto. Superi in media il ${fmt(lv.teamScore, 0)}% dei compagni: 50% vuol dire giocare come i giocatori del tuo MMR.`),
-        li(b('Statistiche rispetto al rank: '), 'il farm e il confronto con i compagni valgono un punto ciascuno (+1 sopra, −1 sotto, 0 in linea) e si sommano: ', verdictText),
+        lv.convScore == null ? null : li(b('Torri e placche: '), `danni alle torri, torri distrutte e placche di ogni tua partita, confrontati con i giocatori da ${role} della tua lobby che hanno avuto lo stesso risultato (vittorie con vittorie, sconfitte con sconfitte: chi vince distrugge quasi sempre più torri). `,
+          'Nelle partite dei benchmark sono tra i parametri più legati alla vittoria in ogni ruolo e lega, molto più del farm. ',
+          `In media superi il ${fmt(lv.convScore, 0)}% dei giocatori da ${role} del tuo MMR (50% = come loro)${convValues.length ? `; per partita, tu contro la lobby con gli stessi risultati: ${listText(convValues)}` : ''}.`),
+        li(b('Statistiche rispetto al rank: '), 'il farm, il confronto con i compagni e torri e placche valgono +1 (sopra), −1 (sotto) o 0 (in linea). Se nessuna è sotto e almeno una è sopra, le statistiche sono sopra il rank; il contrario, sotto; tutte 0, in linea. Se alcune sono sopra e altre sotto, il giudizio è "contrastanti": non si compensano. ', verdictText),
         lv.winRate == null ? null : li(b('Risultati: '), `nelle stesse ${lv.wins + lv.losses} partite da ${role} hai vinto il ${pct(lv.winRate, 0)}. Con questo numero di partite il win rate vero sta tra il ${pct(lv.wrLow, 0)} e il ${pct(lv.wrHigh, 0)} 8 volte su 10 (intervallo di Wilson). `,
-          'Non entra nella somma, che descrive le statistiche: serve a vedere se le statistiche si traducono in vittorie, che sono ciò che muove il rank.')),
+          'Non entra nel giudizio, che descrive le statistiche: serve a vedere se le statistiche si traducono in vittorie, che sono ciò che muove il rank.')),
       el('p', { class: 'sub', style: 'margin:8px 0 0', text: 'Non misura decisioni, gestione della mappa e comunicazione, che contano ma non si leggono nelle statistiche di Riot. '
-        + 'Il farm dipende anche dal campione: a parità di lega i tank e gli assassini farmano meno dei fighter, e la stima può spostarsi anche di due leghe.' }));
+        + 'Il farm dipende anche dal campione: a parità di lega i tank e gli assassini farmano meno dei fighter, e la stima può spostarsi anche di due leghe. '
+        + 'Anche torri e placche dipendono un po\' dal campione: da Top, per esempio, i tank e i maghi ne fanno qualche punto meno dei fighter.' }));
   }
 
   // ---------------------------------------------------------------- posizione nella squadra (segue i filtri)

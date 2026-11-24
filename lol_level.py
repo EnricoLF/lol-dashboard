@@ -9,6 +9,10 @@ Si usano solo le partite nel ruolo principale (quello giocato di piu') e solo i 
 davvero da una lega all'altra in quel ruolo (es. CS/min). KDA, morti e danni restano quasi uguali da
 Iron a Master, perche' ogni uccisione e' la morte di qualcun altro: confrontarli con un'altra lega non
 dice nulla sul livello.
+
+In alcuni ruoli (Top, Mid, Bot) restano solo i CS, che pesano poco sulla vittoria. Per questo il giudizio
+"sopra/sotto il rank" guarda anche la conversione in obiettivi (torri e placche), a parita' di risultato
+rispetto alla tua lobby: chi farma da Platinum ma non converte in torri non ha statistiche "sopra il rank".
 """
 
 from __future__ import annotations
@@ -17,7 +21,8 @@ import math
 import random
 from collections import Counter
 
-from lol_metrics import ROLES, INVERTED, game_score, row_axis_score, scored_axes
+from lol_metrics import (CONVERSION_KEYS, INVERTED, MIN_ROLE_SAMPLES, ROLES, game_score, percentile_of, quantiles,
+                         row_axis_score, scored_axes)
 
 TIER_ORDER = ("IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER")
 TIER_NAMES = {"IRON": "Iron", "BRONZE": "Bronze", "SILVER": "Silver", "GOLD": "Gold", "PLATINUM": "Platinum",
@@ -27,6 +32,7 @@ MIN_SEPARATION = 0.4   # un parametro "distingue le leghe" se da Iron a Master s
 MIN_GAMES = 20
 BOOTSTRAP = 300        # ricampionamenti per l'intervallo di incertezza (seme fisso: il risultato non oscilla)
 INTERVAL = 0.8         # intervallo che contiene la stima con probabilita' 80%
+FARM_AXES = frozenset({"csm", "cs10"})
 
 
 def separation(tiers: dict, role: str, key: str) -> float | None:
@@ -114,14 +120,63 @@ def rank_position(rank: dict | None) -> float | None:
     return (ladder - 200) / 400
 
 
-def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: dict | None) -> dict | None:
+def conversion(rows: list[dict], lobby_rows: list[dict], role: str) -> dict | None:
+    """Torri e placche a parita' di risultato: quanti giocatori della tua lobby, nello stesso ruolo e con lo stesso
+    risultato, fanno meno di te (0-100; 50 = come i giocatori del tuo MMR).
+
+    Le vittorie si confrontano con le vittorie e le sconfitte con le sconfitte: chi vince distrugge quasi sempre piu'
+    torri, e senza questa regola la misura direbbe solo quante partite hai vinto. rows: le tue partite nel ruolo;
+    lobby_rows: gli altri 9 giocatori delle tue partite (righe di participant_metrics).
+    """
+    refs = {}
+    for win in (True, False):
+        for key in CONVERSION_KEYS:
+            values = [r[key] for r in lobby_rows if r["role"] == role and r["win"] == win and r.get(key) is not None]
+            if len(values) >= MIN_ROLE_SAMPLES:
+                refs[win, key] = quantiles(values)
+    per_game, per_key = [], {key: [] for key in CONVERSION_KEYS}
+    for row in rows:
+        scores = {}
+        for key in CONVERSION_KEYS:
+            if row.get(key) is not None and (row["win"], key) in refs:
+                scores[key] = percentile_of(row[key], refs[row["win"], key])
+                per_key[key].append(scores[key])
+        if scores:
+            per_game.append(sum(scores.values()) / len(scores))
+    if len(per_game) < MIN_GAMES:
+        return None
+    rng = random.Random(2028)
+    boot = sorted(sum(rng.choice(per_game) for _ in per_game) / len(per_game) for _ in range(BOOTSTRAP))
+    tail = (1 - INTERVAL) / 2
+    low, high = boot[int(tail * BOOTSTRAP)], boot[int((1 - tail) * BOOTSTRAP) - 1]
+    # Valori medi, per la pagina: i tuoi e quelli dei giocatori della lobby con gli stessi risultati (le medie della
+    # lobby per vittorie e sconfitte, pesate come le tue). Medie e non mediane: torri e placche sono numeri interi
+    # piccoli, e la mediana nasconde le differenze.
+    typical = {}
+    for key in CONVERSION_KEYS:
+        mine = [r for r in rows if r.get(key) is not None and (r["win"], key) in refs]
+        if per_key[key] and mine:
+            means = {win: sum(r[key] for r in lobby_rows if r["role"] == role and r["win"] == win and r.get(key) is not None)
+                     / len([1 for r in lobby_rows if r["role"] == role and r["win"] == win and r.get(key) is not None])
+                     for win in {r["win"] for r in mine}}
+            typical[key] = {"score": round(sum(per_key[key]) / len(per_key[key]), 1),
+                            "you": round(sum(r[key] for r in mine) / len(mine), 2),
+                            "lobby": round(sum(means[r["win"]] for r in mine) / len(mine), 2)}
+    return {"convGames": len(per_game), "convScore": round(sum(per_game) / len(per_game), 1),
+            "convLow": round(low, 1), "convHigh": round(high, 1),
+            "convSignal": 1 if low > 50 else -1 if high < 50 else 0, "convAxes": typical}
+
+
+def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: dict | None,
+                   lobby_rows: list[dict] | None = None) -> dict | None:
     """Livello stimato nel ruolo principale, dalle righe di participant_metrics delle tue partite
     (gia' filtrate: es. stagione).
 
     Si usa solo il ruolo che giochi di piu': mescolare i ruoli abbasserebbe la stima di chi gioca bene il
     suo ruolo e peggio quelli secondari. all_rows: righe con "role" e i valori dei parametri.
     tiers: benchmarks.json["tiers"]. lobby: distribuzioni della tua lobby (i 9 giocatori delle tue
-    partite), per il punteggio rispetto al tuo MMR.
+    partite), per il punteggio rispetto al tuo MMR. lobby_rows: le loro righe di participant_metrics, per la
+    conversione in obiettivi a parita' di risultato.
     """
     available = [t for t in TIER_ORDER if t in tiers]
     if len(available) < len(TIER_ORDER) or not all_rows:
@@ -184,9 +239,15 @@ def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: 
                "wrLow": round(wr_low, 3), "wrHigh": round(wr_high, 3),
                "resultSignal": 1 if wr_low > 0.5 else -1 if wr_high < 0.5 else 0}
 
-    # Giudizio sulle statistiche: le due misure si sommano. Farm sopra il rank = +1, sotto = -1; superi piu'
-    # (o meno) della meta' dei compagni in modo netto (tutto l'intervallo 80%) = +1 (o -1). Totale > 0 sopra,
-    # < 0 sotto. Descrive come giochi, non dice dove andrai: per quello contano i risultati.
+    # Terza misura: torri e placche rispetto ai giocatori del tuo MMR con lo stesso risultato
+    conv_info = conversion(rows, lobby_rows or [], main_role)
+
+    # Giudizio sulle statistiche, da tre misure che valgono +1 (sopra), -1 (sotto) o 0: farm rispetto al rank
+    # (tutto l'intervallo 80% oltre una divisione dal rank), compagni superati e conversione in obiettivi (tutto
+    # l'intervallo 80% sopra o sotto 50). Nessuna sotto e almeno una sopra: "above"; il contrario: "below"; tutte
+    # 0: "inline"; alcune sopra e altre sotto: "mixed". Prima farm e compagni si sommavano, ma per un Top tutti e
+    # due premiano CS e poche morti: davano +2, cioe' "sopra il rank", anche a chi non converte in torri e vince
+    # meno della meta' delle partite. Descrive come giochi, non dice dove andrai: per quello contano i risultati.
     current = rank_position(rank)
     farm_signal = None
     if current is not None:
@@ -194,8 +255,9 @@ def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: 
     if farm_signal is None:
         verdict = None
     else:
-        total = farm_signal + (team_info["teamSignal"] if team_info else 0)
-        verdict = "above" if total > 0 else "below" if total < 0 else "inline"
+        signals = [farm_signal, *(info[key] for info, key in ((team_info, "teamSignal"), (conv_info, "convSignal")) if info)]
+        ups, downs = signals.count(1), signals.count(-1)
+        verdict = "mixed" if ups and downs else "above" if ups else "below" if downs else "inline"
 
     # Livello di ogni parametro che distingue le leghe nel ruolo principale
     axis_levels = {}
@@ -228,9 +290,12 @@ def estimate_level(all_rows: list[dict], tiers: dict, rank: dict | None, lobby: 
         "verdict": verdict,
         "farmSignal": farm_signal,
         **(team_info or {}),
+        **(conv_info or {}),
         **results,
         "curve": {t: round(v, 1) for t, v in zip(TIER_ORDER, curve)},
         "axesByRole": {role: list(keys) for role, keys in axes_by_role.items()},
+        # nel ruolo principale il livello si stima solo dai CS: la pagina lo chiama "farm", non "prestazioni"
+        "farmOnly": set(axes_by_role[main_role]) <= FARM_AXES,
         "axisLevels": axis_levels,
         "ownTier": own_tier,
         "scoreOwnTier": overall_score(rows, tiers[own_tier]["roles"]) if own_tier else None,

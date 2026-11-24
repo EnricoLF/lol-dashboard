@@ -212,6 +212,7 @@
   const tierName = (t) => (t === 'MASTER' ? 'Master+' : cap(t));
   const ICON_UP = '<svg viewBox="0 0 12 12"><path d="M6 2l4.5 6h-9z" fill="currentColor"/></svg>';
   const ICON_DOWN = '<svg viewBox="0 0 12 12"><path d="M6 10L1.5 4h9z" fill="currentColor"/></svg>';
+  const ICON_MIX = '<svg viewBox="0 0 12 12"><path d="M3.5 1.5l3 4h-6zM8.5 10.5l-3-4h6z" fill="currentColor"/></svg>';
   const ICON_EQ = '<svg viewBox="0 0 12 12"><path d="M2 4h8M2 8h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
   // Distanza dal rank: in divisioni fino a 3, poi in leghe arrotondate alla mezza
   function gapText(gap) {
@@ -229,13 +230,15 @@
   function levelLine(lv, rank) {
     if (!lv) return null;
     const estColor = TIER_COLORS[lv.tier] || TIER_COLORS.GOLD;
-    // Il giudizio riguarda le statistiche (farm + compagni), non e' una previsione del rank
-    const verdicts = { above: ['good', ICON_UP, 'Statistiche sopra il rank'], inline: ['', ICON_EQ, 'Statistiche in linea'], below: ['bad', ICON_DOWN, 'Statistiche sotto il rank'] };
+    // Il giudizio riguarda le statistiche (farm, compagni, torri e placche), non e' una previsione del rank
+    const verdicts = { above: ['good', ICON_UP, 'Statistiche sopra il rank'], inline: ['', ICON_EQ, 'Statistiche in linea'], below: ['bad', ICON_DOWN, 'Statistiche sotto il rank'],
+      mixed: ['', ICON_MIX, 'Statistiche contrastanti'] };
     const [cls, iconSvg, verdictText] = verdicts[lv.verdict] || ['', ICON_EQ, 'Rank n/d'];
-    const pill = el('span', { class: `verdict-pill ${cls}`, title: 'Descrive le statistiche (farm e confronto con i compagni), non prevede il rank' });
+    const pill = el('span', { class: `verdict-pill ${cls}`, title: lv.verdict === 'mixed' ? 'Alcune misure (farm, confronto con i compagni, torri e placche) sono sopra il rank, altre sotto: non prevede il rank'
+      : 'Descrive le statistiche (farm, confronto con i compagni, torri e placche), non prevede il rank' });
     pill.innerHTML = iconSvg;
     pill.append(el('span', { text: verdictText }));
-    // la distanza misura solo il farm: si mostra solo se va nella stessa direzione del giudizio, che somma anche i compagni
+    // la distanza misura solo il farm: si mostra solo se va nella stessa direzione del giudizio, che guarda anche compagni, torri e placche
     const coherent = (lv.verdict === 'above' && lv.gap > 0) || (lv.verdict === 'below' && lv.gap < 0);
     if (coherent && gapText(lv.gap)) pill.append(el('span', { class: 'gap', text: `· farm ${lv.gap > 0 ? '+' : '−'}${gapText(lv.gap)}` }));
 
@@ -300,7 +303,7 @@
 
     const box = el('div', { class: 'scout', title: `${lv.scope === 'season' ? 'Stagione in corso' : 'Ultime 100 partite'} · ${lv.games} partite da ${ROLE_NAMES[lv.role] || lv.role}` },
       el('div', { class: 'scout-top' },
-        el('div', {}, el('div', { class: 'scout-kicker', text: `Livello da ${ROLE_NAMES[lv.role] || lv.role}` }),
+        el('div', {}, el('div', { class: 'scout-kicker', text: `${lv.farmOnly ? 'Farm' : 'Livello'} da ${ROLE_NAMES[lv.role] || lv.role}` }),
           el('div', { class: 'scout-level' }, el('span', { class: 'tier', text: tierName(lv.tier) }), lv.band ? el('span', { class: 'band', text: lv.band }) : null)),
         pill),
       ladder, squad);
